@@ -36,6 +36,11 @@ def get_json(url: str) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
+def get_text(url: str) -> str:
+    with urlopen(url, timeout=5) as response:
+        return response.read().decode("utf-8")
+
+
 def post_json(url: str, payload: dict) -> dict:
     request = Request(
         url,
@@ -45,6 +50,20 @@ def post_json(url: str, payload: dict) -> dict:
     )
     with urlopen(request, timeout=5) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def test_home_page_uses_d3_chat_not_json_edit_form(tmp_path: Path) -> None:
+    store, project_id = create_project(tmp_path)
+    base_url, server = with_server(store.db_path, project_id)
+    try:
+        html = get_text(f"{base_url}/")
+    finally:
+        server.shutdown()
+
+    assert "d3@7" in html
+    assert "chat-form" in html
+    assert "Payload JSON" not in html
+    assert "/api/edit" not in html
 
 
 def test_graph_endpoint_returns_latest_nodes_and_edges(tmp_path: Path) -> None:
@@ -59,25 +78,26 @@ def test_graph_endpoint_returns_latest_nodes_and_edges(tmp_path: Path) -> None:
     assert {edge["source"] for edge in graph["edges"]} == {"repo-context", "draft"}
 
 
-def test_edit_endpoint_renames_ticket_and_creates_version(tmp_path: Path) -> None:
+def test_chat_endpoint_renames_ticket_and_creates_version(tmp_path: Path) -> None:
     store, project_id = create_project(tmp_path)
     base_url, server = with_server(store.db_path, project_id)
     try:
-        response = post_json(f"{base_url}/api/edit", {"operation": "rename", "payload": {"id": "draft", "title": "Draft repo tickets"}})
+        response = post_json(f"{base_url}/api/chat", {"message": "rename draft to Draft repo tickets"})
     finally:
         server.shutdown()
 
     assert response["version_id"] == 2
+    assert response["reply"] == "Renamed draft."
     assert any(node["title"] == "Draft repo tickets" for node in response["graph"]["nodes"])
 
 
-def test_invalid_edit_returns_400_without_version(tmp_path: Path) -> None:
+def test_invalid_chat_edit_returns_400_without_version(tmp_path: Path) -> None:
     store, project_id = create_project(tmp_path)
     base_url, server = with_server(store.db_path, project_id)
     try:
         request = Request(
-            f"{base_url}/api/edit",
-            data=json.dumps({"operation": "add_dependency", "payload": {"id": "repo-context", "dependency": "review"}}).encode("utf-8"),
+            f"{base_url}/api/chat",
+            data=json.dumps({"message": "make repo-context depend on review"}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
