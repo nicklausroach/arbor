@@ -325,3 +325,53 @@ def test_invalid_llm_revision_returns_previous_valid_draft(tmp_path: Path) -> No
     assert "unknown dependency" in result.error
     assert result.repair_draft == ProjectDraft(first.summary, first.tickets)
     assert store.latest_version(project_id).id == first.id
+
+
+def test_llm_revision_rewrites_dependencies_after_stabilizing_ids(tmp_path: Path) -> None:
+    store, project_id = create_project(tmp_path)
+    store.save_revision(project_id, graph_draft(), "initial")
+
+    result = store.apply_llm_revision(
+        project_id,
+        json.dumps(
+            {
+                "summary": "same graph, regenerated ids",
+                "tickets": [
+                    {"id": "repo-v2", "title": "Repo context", "problem": "Read repo.", "acceptanceCriteria": ["Tree"], "dependsOn": []},
+                    {"id": "draft-v2", "title": "Draft tickets", "problem": "Plan work.", "acceptanceCriteria": ["Tickets"], "dependsOn": ["repo-v2"]},
+                    {"id": "review-v2", "title": "Review DAG", "problem": "Validate graph.", "acceptanceCriteria": ["Valid DAG"], "dependsOn": ["draft-v2"]},
+                ],
+            }
+        ),
+    )
+
+    assert result.error == ""
+    assert result.version is not None
+    tickets = {ticket.id: ticket for ticket in result.version.tickets}
+    assert tickets["draft"].depends_on == ["repo-context"]
+    assert tickets["review"].depends_on == ["draft"]
+
+
+def test_merge_and_split_reject_reused_old_ids(tmp_path: Path) -> None:
+    store, project_id = create_project(tmp_path)
+    store.save_revision(project_id, graph_draft(), "initial")
+
+    for operation, payload in [
+        ("merge", {"ids": ["draft", "review"], "id": "draft"}),
+        (
+            "split",
+            {
+                "id": "draft",
+                "tickets": [
+                    {"id": "draft", "title": "Draft model", "problem": "Model.", "acceptanceCriteria": ["Model"]},
+                    {"id": "draft-ui", "title": "Draft UI", "problem": "UI.", "acceptanceCriteria": ["UI"]},
+                ],
+            },
+        ),
+    ]:
+        try:
+            store.apply_edit(project_id, operation, payload)
+        except GraphRevisionError as exc:
+            assert "new ticket id" in str(exc)
+        else:
+            raise AssertionError(f"{operation} reused an old id")

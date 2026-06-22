@@ -247,11 +247,18 @@ class DraftStore:
         previous = self._latest_tickets(project_id)
         by_title = {_key(ticket.title): ticket.id for ticket in previous}
         used: set[str] = set()
-        stable = []
+        id_map: dict[str, str] = {}
+        planned: list[tuple[DraftTicket, str]] = []
         for ticket in tickets:
             ticket_id = by_title.get(_key(ticket.title)) or ticket.id or _slug(ticket.title)
             ticket_id = _unique_id(ticket_id, used)
-            stable.append(_replace_ticket(ticket, id=ticket_id))
+            used.add(ticket_id)
+            id_map[ticket.id] = ticket_id
+            planned.append((ticket, ticket_id))
+        stable = [
+            _replace_ticket(ticket, id=ticket_id, depends_on=[id_map.get(dep, dep) for dep in ticket.depends_on])
+            for ticket, ticket_id in planned
+        ]
         _validate_dependencies(ProjectDraft("", stable))
         return stable
 
@@ -418,7 +425,9 @@ def _merge_tickets(tickets: list[DraftTicket], payload: dict[str, Any]) -> list[
     selected = [ticket for ticket in tickets if ticket.id in ids]
     if len(selected) != len(ids):
         raise ValueError("merge references unknown ticket")
-    used = {ticket.id for ticket in tickets if ticket.id not in ids}
+    if isinstance(payload.get("id"), str) and payload["id"] in ids:
+        raise ValueError("merge requires a new ticket id")
+    used = {ticket.id for ticket in tickets}
     new_id = _unique_id(str(payload.get("id") or _slug(_payload_text(payload, "title"))), used)
     title = str(payload.get("title") or " / ".join(ticket.title for ticket in selected))
     problem = "\n\n".join(ticket.problem for ticket in selected)
@@ -447,12 +456,14 @@ def _split_ticket(tickets: list[DraftTicket], payload: dict[str, Any]) -> list[D
     raw_tickets = payload.get("tickets")
     if not isinstance(raw_tickets, list) or len(raw_tickets) < 2:
         raise ValueError("split requires at least two new tickets")
-    used = {ticket.id for ticket in tickets if ticket.id != original_id}
+    used = {ticket.id for ticket in tickets}
     new_tickets: list[DraftTicket] = []
     for item in raw_tickets:
         if not isinstance(item, dict):
             raise ValueError("split ticket must be an object")
         ticket = _parse_ticket({**item, "dependsOn": item.get("dependsOn", original.depends_on)})
+        if ticket.id == original_id:
+            raise ValueError("split requires new ticket ids")
         ticket_id = _unique_id(ticket.id or _slug(ticket.title), used)
         used.add(ticket_id)
         new_tickets.append(_replace_ticket(ticket, id=ticket_id))
