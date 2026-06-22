@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import threading
 from http.server import HTTPServer
 from pathlib import Path
@@ -9,7 +10,7 @@ from urllib.request import Request, urlopen
 
 from arbor.drafting import DraftStore
 from arbor.repo import connect_repository
-from arbor.ui import make_handler
+from arbor.ui import make_handler, make_server
 from tests.test_drafting import graph_draft, init_repo
 
 
@@ -50,6 +51,22 @@ def post_json(url: str, payload: dict) -> dict:
     )
     with urlopen(request, timeout=5) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def test_served_ui_responds_while_a_socket_is_held_open(tmp_path: Path) -> None:
+    store, project_id = create_project(tmp_path)
+    server = make_server(store.db_path, project_id, "127.0.0.1", 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    blocker = socket.create_connection((host, port), timeout=5)
+    try:
+        graph = get_json(f"http://{host}:{port}/api/graph")
+    finally:
+        blocker.close()
+        server.shutdown()
+
+    assert {node["id"] for node in graph["nodes"]} == {"repo-context", "draft", "review"}
 
 
 def test_home_page_uses_d3_chat_not_json_edit_form(tmp_path: Path) -> None:

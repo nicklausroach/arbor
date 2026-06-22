@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import asdict
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -237,8 +237,12 @@ def make_handler(db_path: Path, project_id: int) -> type[BaseHTTPRequestHandler]
     return ArborHandler
 
 
+def make_server(db_path: Path, project_id: int, host: str = "127.0.0.1", port: int = 8765) -> ThreadingHTTPServer:
+    return ThreadingHTTPServer((host, port), make_handler(db_path, project_id))
+
+
 def serve(db_path: Path, project_id: int, host: str = "127.0.0.1", port: int = 8765) -> None:
-    server = HTTPServer((host, port), make_handler(db_path, project_id))
+    server = make_server(db_path, project_id, host, port)
     print(f"Serving Arbor draft UI at http://{host}:{server.server_port}")
     server.serve_forever()
 
