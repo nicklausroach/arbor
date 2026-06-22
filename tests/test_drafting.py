@@ -3,7 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from arbor.drafting import DraftStore, PlannerContext, ProjectDraft, validate_planner_output
+from arbor.drafting import DraftStore, DraftTicket, GraphRevisionError, PlannerContext, ProjectDraft, validate_planner_output
 from arbor.repo import connect_repository
 
 
@@ -181,3 +181,147 @@ def test_cli_draft_project_uses_prd_reference(tmp_path: Path) -> None:
 
     assert "PRD: https://github.com/nicklausroach/arbor/issues/1" in result.stdout
     assert "project_id=1" in result.stdout
+
+
+
+def graph_draft() -> ProjectDraft:
+    return ProjectDraft(
+        summary="graph",
+        tickets=[
+            DraftTicket("repo-context", "Repo context", "Read repo.", ["Tree"], depends_on=[]),
+            DraftTicket("draft", "Draft tickets", "Plan work.", ["Tickets"], depends_on=["repo-context"]),
+            DraftTicket("review", "Review DAG", "Validate graph.", ["Valid DAG"], depends_on=["draft"]),
+        ],
+    )
+
+
+def create_project(tmp_path: Path) -> tuple[DraftStore, int]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    init_repo(repo)
+    store = DraftStore(tmp_path / "arbor.sqlite")
+    project = store.create_project("Repo context", "Objective", connect_repository(repo))
+    return store, project.id
+
+
+def test_graph_validation_rejects_cycles_missing_dependencies_and_orphans() -> None:
+    cycle = ProjectDraft(
+        "cycle",
+        [
+            DraftTicket("a", "A", "p", ["x"], depends_on=["b"]),
+            DraftTicket("b", "B", "p", ["x"], depends_on=["a"]),
+        ],
+    )
+    missing = ProjectDraft("missing", [DraftTicket("a", "A", "p", ["x"], depends_on=["missing"])])
+    orphan = ProjectDraft(
+        "orphan",
+        [
+            DraftTicket("root-a", "Root A", "p", ["x"], depends_on=[]),
+            DraftTicket("root-b", "Root B", "p", ["x"], depends_on=[]),
+        ],
+    )
+
+    for draft, message in [(cycle, "dependency cycle"), (missing, "unknown dependency"), (orphan, "orphan")]:
+        try:
+            validate_planner_output(
+                json.dumps(
+                    {
+                        "summary": draft.summary,
+                        "tickets": [
+                            {
+                                "id": ticket.id,
+                                "title": ticket.title,
+                                "problem": ticket.problem,
+                                "acceptanceCriteria": ticket.acceptance_criteria,
+                                "dependsOn": ticket.depends_on,
+                            }
+                            for ticket in draft.tickets
+                        ],
+                    }
+                )
+            )
+        except ValueError as exc:
+            assert message in str(exc)
+        else:
+            raise AssertionError(f"{message} draft accepted")
+
+
+def test_valid_revisions_create_numbered_versions_only_after_validation(tmp_path: Path) -> None:
+    store, project_id = create_project(tmp_path)
+    first = store.save_revision(project_id, graph_draft(), "initial")
+
+    renamed = store.apply_edit(project_id, "rename", {"id": "draft", "title": "Draft repo tickets"})
+    try:
+        store.apply_edit(project_id, "add_dependency", {"id": "repo-context", "dependency": "review"})
+    except GraphRevisionError as exc:
+        assert "dependency cycle" in str(exc)
+    else:
+        raise AssertionError("invalid edit created a version")
+
+    latest = store.latest_version(project_id)
+    assert first.id == 1
+    assert renamed.id == 2
+    assert latest.id == 2
+
+
+def test_merge_creates_new_ticket_and_preserves_external_edges(tmp_path: Path) -> None:
+    store, project_id = create_project(tmp_path)
+    store.save_revision(project_id, graph_draft(), "initial")
+
+    version = store.apply_edit(
+        project_id,
+        "merge",
+        {"ids": ["draft", "review"], "title": "Plan and review tickets", "id": "plan-review"},
+    )
+
+    tickets = {ticket.id: ticket for ticket in version.tickets}
+    assert "draft" not in tickets
+    assert "review" not in tickets
+    assert tickets["plan-review"].depends_on == ["repo-context"]
+    assert tickets["plan-review"].acceptance_criteria == ["Tickets", "Valid DAG"]
+    assert all("plan-review" not in ticket.depends_on for ticket in tickets.values() if ticket.id == "plan-review")
+
+
+def test_split_inherits_dependencies_and_orders_internal_pieces(tmp_path: Path) -> None:
+    store, project_id = create_project(tmp_path)
+    store.save_revision(project_id, graph_draft(), "initial")
+
+    version = store.apply_edit(
+        project_id,
+        "split",
+        {
+            "id": "draft",
+            "tickets": [
+                {"id": "draft-model", "title": "Draft model", "problem": "Model.", "acceptanceCriteria": ["Model"]},
+                {"id": "draft-ui", "title": "Draft UI", "problem": "UI.", "acceptanceCriteria": ["UI"]},
+            ],
+            "order": [["draft-model", "draft-ui"]],
+        },
+    )
+
+    tickets = {ticket.id: ticket for ticket in version.tickets}
+    assert tickets["draft-model"].depends_on == ["repo-context"]
+    assert tickets["draft-ui"].depends_on == ["repo-context", "draft-model"]
+    assert tickets["review"].depends_on == ["draft-ui"]
+
+
+def test_invalid_llm_revision_returns_previous_valid_draft(tmp_path: Path) -> None:
+    store, project_id = create_project(tmp_path)
+    first = store.save_revision(project_id, graph_draft(), "initial")
+
+    result = store.apply_llm_revision(
+        project_id,
+        json.dumps(
+            {
+                "summary": "bad",
+                "tickets": [
+                    {"id": "repo-context", "title": "Repo", "problem": "p", "acceptanceCriteria": ["x"], "dependsOn": ["missing"]}
+                ],
+            }
+        ),
+    )
+
+    assert result.version is None
+    assert "unknown dependency" in result.error
+    assert result.repair_draft == ProjectDraft(first.summary, first.tickets)
+    assert store.latest_version(project_id).id == first.id

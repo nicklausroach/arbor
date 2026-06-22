@@ -6,6 +6,7 @@ from pathlib import Path
 from . import PRD_URL
 from .drafting import DraftStore, validate_planner_output
 from .repo import connect_repository
+from .ui import serve
 
 
 def main() -> None:
@@ -17,6 +18,11 @@ def main() -> None:
     draft.add_argument("--title", required=True)
     draft.add_argument("--objective", required=True)
     draft.add_argument("--planner-output", required=True, type=Path)
+    serve_draft = subparsers.add_parser("serve-draft")
+    serve_draft.add_argument("--db", required=True, type=Path)
+    serve_draft.add_argument("--project-id", required=True, type=int)
+    serve_draft.add_argument("--host", default="127.0.0.1")
+    serve_draft.add_argument("--port", default=8765, type=int)
     args = parser.parse_args()
 
     if args.command == "draft-project":
@@ -28,6 +34,8 @@ def main() -> None:
         print(f"project_id={project.id}")
         print(f"draft_version_id={version.id}")
         print(f"PRD: {PRD_URL}")
+    elif args.command == "serve-draft":
+        serve(args.db, args.project_id, args.host, args.port)
 
 
 if __name__ == "__main__":
