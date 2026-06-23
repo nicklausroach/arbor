@@ -1,8 +1,8 @@
-<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="oklch(0.52 0.08 150)" stroke-width="1.6" stroke-linecap="round">
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#457650" stroke-width="1.6" stroke-linecap="round">
   <line x1="12" y1="22" x2="12" y2="13"></line>
   <line x1="12" y1="15" x2="6" y2="9"></line>
   <line x1="12" y1="13" x2="18" y2="7"></line>
-  <circle cx="6" cy="8" r="2.4" fill="oklch(0.52 0.08 150)" stroke="none"></circle>
-  <circle cx="18" cy="6" r="2.4" fill="oklch(0.52 0.08 150)" stroke="none"></circle>
-  <circle cx="12" cy="12" r="2.4" fill="oklch(0.52 0.08 150)" stroke="none"></circle>
+  <circle cx="6" cy="8" r="2.4" fill="#457650" stroke="none"></circle>
+  <circle cx="18" cy="6" r="2.4" fill="#457650" stroke="none"></circle>
+  <circle cx="12" cy="12" r="2.4" fill="#457650" stroke="none"></circle>
 </svg>
