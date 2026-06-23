@@ -22,8 +22,8 @@ export interface Layout {
   height: number;
 }
 
-const NW = 208;
-const NH = 92;
+const NW = 225;
+const NH = 104;
 const HG = 252;
 const VG = 34;
 const MID_Y = 248;

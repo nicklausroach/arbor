@@ -12,6 +12,7 @@
   --accent: oklch(0.52 0.08 150);
   --accent-soft: oklch(0.93 0.03 150);
   --shadow: rgba(70, 55, 30, 0.16);
+  --dot: #e0d8c7;
   --logbg: #26221b;
 }
 

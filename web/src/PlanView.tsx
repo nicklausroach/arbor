@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ApproveModal } from './ApproveModal';
 import { api, type ApproveResult, type DraftTicket, type ProjectState } from './api';
 import { layoutGraph, NODE_HEIGHT, NODE_WIDTH } from './dagLayout';
+import { GraphViewport } from './GraphViewport';
 
 interface Props {
   projectId: string;
@@ -229,8 +230,22 @@ export function PlanView({ projectId, onApproved }: Props) {
           </div>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', position: 'relative', background: 'var(--bg)' }}>
-          <div style={{ position: 'relative', width: layout.width, height: layout.height, margin: 20 }}>
+        <GraphViewport
+          width={layout.width}
+          height={layout.height}
+          overlay={
+            selected && (
+              <TicketInspector
+                key={selected.id}
+                projectId={projectId}
+                ticket={selected}
+                allTickets={tickets}
+                onClose={() => setSelectedId(null)}
+                onChanged={(s) => setState(s)}
+              />
+            )
+          }
+        >
             <svg width={layout.width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
               {layout.edges.map((e) => (
                 <path key={`${e.from}-${e.to}`} d={e.d} fill="none" stroke="var(--border2)" strokeWidth={1.5} strokeDasharray="5 5" />
@@ -248,7 +263,10 @@ export function PlanView({ projectId, onApproved }: Props) {
                     left: n.x,
                     top: n.y,
                     width: NODE_WIDTH,
-                    minHeight: NODE_HEIGHT,
+                    height: NODE_HEIGHT,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
                     textAlign: 'left',
                     cursor: 'pointer',
                     background: 'var(--panel)',
@@ -257,35 +275,37 @@ export function PlanView({ projectId, onApproved }: Props) {
                     borderBottom: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
                     borderLeft: '3px solid var(--accent)',
                     borderRadius: 11,
-                    padding: '12px 13px',
+                    padding: '12px 13px 10px',
                     boxShadow: sel ? '0 8px 24px -6px var(--shadow)' : '0 1px 2px var(--shadow)',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 7 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6, flex: 'none' }}>
                     <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
                       #{t.id}
                     </span>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.28, color: 'var(--ink)' }}>{t.title}</div>
-                  <div className="mono" style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 8 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      lineHeight: 1.28,
+                      color: 'var(--ink)',
+                      display: '-webkit-box',
+                      WebkitBoxOrient: 'vertical',
+                      WebkitLineClamp: 2,
+                      overflow: 'hidden',
+                      minHeight: 0,
+                    }}
+                  >
+                    {t.title}
+                  </div>
+                  <div className="mono" style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 'auto', flex: 'none' }}>
                     {t.dependsOn.length ? `${t.dependsOn.length} upstream` : 'root ticket'}
                   </div>
                 </button>
               );
             })}
-          </div>
-
-          {selected && (
-            <TicketInspector
-              key={selected.id}
-              projectId={projectId}
-              ticket={selected}
-              allTickets={tickets}
-              onClose={() => setSelectedId(null)}
-              onChanged={(s) => setState(s)}
-            />
-          )}
-        </div>
+        </GraphViewport>
       </div>
       {approveOpen && (
         <ApproveModal

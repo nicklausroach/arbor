@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type RunState, type TicketWithRuns } from './api';
 import { layoutGraph, NODE_HEIGHT, NODE_WIDTH } from './dagLayout';
+import { GraphViewport } from './GraphViewport';
 import { IntegratedTerminal } from './IntegratedTerminal';
 
 const SESSION_ELIGIBLE_STATUSES = new Set(['running', 'review']);
@@ -120,8 +121,21 @@ export function RunView({ projectId }: Props) {
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div style={{ flex: 1, overflow: 'auto', position: 'relative', background: 'var(--bg)' }}>
-          <div style={{ position: 'relative', width: layout.width, height: layout.height, margin: 20 }}>
+        <GraphViewport
+          width={layout.width}
+          height={layout.height}
+          overlay={
+            drawerTicket && (
+              <RunDrawer
+                ticket={drawerTicket}
+                onClose={() => setDrawerKey(null)}
+                onConnectSession={(runId) =>
+                  setSession({ runId, ticketNumber: drawerTicket.number, branch: drawerTicket.branch_name ?? '' })
+                }
+              />
+            )
+          }
+        >
             <svg width={layout.width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
               {layout.edges.map((e) => {
                 const upMerged = byKey.get(e.from)?.status === 'merged';
@@ -142,6 +156,7 @@ export function RunView({ projectId }: Props) {
               const meta = STATUS_META[t.status] ?? STATUS_META.draft;
               const sel = drawerKey === n.id;
               const pulsing = t.status === 'running';
+              const worktreeName = formatWorktreeName(t.branch_name);
               return (
                 <button
                   key={n.id}
@@ -151,7 +166,10 @@ export function RunView({ projectId }: Props) {
                     left: n.x,
                     top: n.y,
                     width: NODE_WIDTH,
-                    minHeight: NODE_HEIGHT,
+                    height: NODE_HEIGHT,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
                     textAlign: 'left',
                     cursor: 'pointer',
                     background: 'var(--panel)',
@@ -160,11 +178,11 @@ export function RunView({ projectId }: Props) {
                     borderBottom: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
                     borderLeft: `3px solid ${meta.color}`,
                     borderRadius: 11,
-                    padding: '12px 13px',
+                    padding: '12px 13px 10px',
                     boxShadow: sel ? '0 8px 24px -6px var(--shadow)' : '0 1px 2px var(--shadow)',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 7 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6, flex: 'none' }}>
                     <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
                       #{t.number}
                     </span>
@@ -185,25 +203,40 @@ export function RunView({ projectId }: Props) {
                       {meta.label}
                     </span>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.28, color: 'var(--ink)' }}>{t.title}</div>
-                  <div className="mono" style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 8 }}>
-                    {t.branch_name?.replace(/^arbor\//, '') ?? ''}
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      lineHeight: 1.28,
+                      color: 'var(--ink)',
+                      display: '-webkit-box',
+                      WebkitBoxOrient: 'vertical',
+                      WebkitLineClamp: 2,
+                      overflow: 'hidden',
+                      minHeight: 0,
+                    }}
+                  >
+                    {t.title}
+                  </div>
+                  <div
+                    className="mono"
+                    title={worktreeName}
+                    style={{
+                      fontSize: 10.5,
+                      color: 'var(--muted)',
+                      marginTop: 'auto',
+                      flex: 'none',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {worktreeName}
                   </div>
                 </button>
               );
             })}
-          </div>
-
-          {drawerTicket && (
-            <RunDrawer
-              ticket={drawerTicket}
-              onClose={() => setDrawerKey(null)}
-              onConnectSession={(runId) =>
-                setSession({ runId, ticketNumber: drawerTicket.number, branch: drawerTicket.branch_name ?? '' })
-              }
-            />
-          )}
-        </div>
+        </GraphViewport>
       </div>
       {session && (
         <IntegratedTerminal
@@ -215,6 +248,11 @@ export function RunView({ projectId }: Props) {
       )}
     </div>
   );
+}
+
+function formatWorktreeName(branchName?: string | null): string {
+  if (!branchName) return '';
+  return `.../${branchName.split('/').pop() ?? branchName}`;
 }
 
 function StatusBadge({ status }: { status: string }) {
