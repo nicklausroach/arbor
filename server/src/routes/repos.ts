@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { Router } from "express";
 import { db } from "../db/index.js";
 import {
@@ -10,6 +13,7 @@ import {
 } from "../github/client.js";
 import { newId } from "../id.js";
 import { getSecret, setSecret } from "../keychain.js";
+import { resolveBrowsePath } from "../fs/browse.js";
 
 export const reposRouter = Router();
 
@@ -89,6 +93,90 @@ reposRouter.post("/", async (req, res) => {
   ).run(id, localPath, owner, name, defaultBranch);
   const row = db.prepare("SELECT * FROM repositories WHERE id = ?").get(id);
   res.status(201).json(row);
+});
+
+interface BrowseEntry {
+  name: string;
+  type: "directory" | "file";
+  isHidden: boolean;
+  isGitRepo: boolean;
+}
+
+// Lists directories/files at a given filesystem path so the frontend can implement a repo
+// picker. Defaults to the user's home directory. Paths are resolved against the home
+// directory (never the server process's cwd) to avoid surprising traversal via relative input.
+reposRouter.post("/browse", (req, res) => {
+  const { path: requestedPath } = req.body as { path?: string };
+  if (requestedPath !== undefined && typeof requestedPath !== "string") {
+    res.status(400).json({ error: "path must be a string" });
+    return;
+  }
+
+  let resolvedPath: string;
+  try {
+    resolvedPath = resolveBrowsePath(requestedPath);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+    return;
+  }
+
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(resolvedPath);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") {
+      res.status(404).json({ error: "Path does not exist", path: resolvedPath });
+    } else if (code === "EACCES" || code === "EPERM") {
+      res.status(403).json({ error: "Permission denied", path: resolvedPath });
+    } else {
+      res.status(400).json({ error: "Unable to access path", path: resolvedPath });
+    }
+    return;
+  }
+
+  if (!stat.isDirectory()) {
+    res.status(400).json({ error: "Path is not a directory", path: resolvedPath });
+    return;
+  }
+
+  let dirents: fs.Dirent[];
+  try {
+    dirents = fs.readdirSync(resolvedPath, { withFileTypes: true });
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "EACCES" || code === "EPERM") {
+      res.status(403).json({ error: "Permission denied", path: resolvedPath });
+    } else {
+      res.status(400).json({ error: "Unable to read directory", path: resolvedPath });
+    }
+    return;
+  }
+
+  const entries: BrowseEntry[] = dirents
+    .filter((d) => d.isDirectory() || d.isFile())
+    .map((d) => {
+      const isHidden = d.name.startsWith(".");
+      const type: "directory" | "file" = d.isDirectory() ? "directory" : "file";
+      const entryPath = path.join(resolvedPath, d.name);
+      return {
+        name: d.name,
+        type,
+        isHidden,
+        isGitRepo: type === "directory" ? isGitRepo(entryPath) : false,
+      };
+    })
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+
+  const parentPath = path.dirname(resolvedPath);
+  res.json({
+    path: resolvedPath,
+    parentPath: parentPath === resolvedPath ? null : parentPath,
+    entries,
+  });
 });
 
 reposRouter.get("/auth-status", (_req, res) => {
