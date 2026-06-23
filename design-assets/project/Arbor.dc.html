@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+button{font-family:inherit;border:none;background:none;cursor:pointer;color:inherit}
+input,textarea{font-family:inherit}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;border:3px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-track{background:transparent}
+@keyframes ar-spin{to{transform:rotate(360deg)}}
+@keyframes ar-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes ar-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes ar-pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@keyframes ar-dash{to{stroke-dashoffset:-14}}
+</style>
+</helmet>
+
+<div style="{{ rootStyle }}">
+  <!-- ===== macOS window ===== -->
+  <div style="width:1300px;height:840px;max-width:96vw;max-height:94vh;border-radius:14px;overflow:hidden;background:var(--bg);box-shadow:0 30px 80px -20px rgba(20,14,6,.45),0 0 0 1px var(--border);display:flex;flex-direction:column">
+
+    <!-- titlebar -->
+    <div style="height:46px;flex:none;display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--border)">
+      <div style="display:flex;gap:8px">
+        <span style="width:12px;height:12px;border-radius:99px;background:#ED6A5E;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)"></span>
+        <span style="width:12px;height:12px;border-radius:99px;background:#F4BE50;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)"></span>
+        <span style="width:12px;height:12px;border-radius:99px;background:#62C554;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)"></span>
+      </div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:9px;font-size:12.5px;color:var(--ink2)">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">{{ repoName }}</span>
+        <span style="opacity:.4">/</span>
+        <span style="font-weight:600;color:var(--ink)">{{ projectTitle }}</span>
+      </div>
+      <button onClick="{{ onToggleDark }}" title="Toggle theme" style="width:30px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--ink2)" style-hover="background:var(--panel2)">
+        <span style="font-size:14px">{{ themeIcon }}</span>
+      </button>
+    </div>
+
+    <div style="flex:1;display:flex;min-height:0">
+      <!-- ===== left rail ===== -->
+      <nav style="width:212px;flex:none;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 12px">
+        <div style="display:flex;align-items:center;gap:9px;padding:4px 6px 18px">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round">
+            <line x1="12" y1="22" x2="12" y2="13"></line>
+            <line x1="12" y1="15" x2="6" y2="9"></line>
+            <line x1="12" y1="13" x2="18" y2="7"></line>
+            <circle cx="12" cy="13" r="0" fill="var(--accent)"></circle>
+            <circle cx="6" cy="8" r="2.4" fill="var(--accent)" stroke="none"></circle>
+            <circle cx="18" cy="6" r="2.4" fill="var(--accent)" stroke="none"></circle>
+            <circle cx="12" cy="12" r="2.4" fill="var(--accent)" stroke="none"></circle>
+          </svg>
+          <span style="font-family:Newsreader,serif;font-size:21px;font-weight:600;color:var(--ink);letter-spacing:.01em">Arbor</span>
+        </div>
+
+        <!-- repository switcher -->
+        <div style="position:relative;margin-bottom:16px">
+          <button onClick="{{ onToggleRepoMenu }}" style="width:100%;display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:10px;border:1px solid var(--border);background:var(--bg)" style-hover="border-color:var(--border2)">
+            <span style="width:27px;height:27px;border-radius:7px;flex:none;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:#fff;background:{{ repoChip.color }}">{{ repoChip.initials }}</span>
+            <span style="flex:1;text-align:left;min-width:0">
+              <span style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ repoChip.name }}</span>
+              <span style="display:block;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)">{{ repoChip.branch }}</span>
+            </span>
+            <span style="color:var(--muted);font-size:12px;transform:translateY(-1px)">⌄</span>
+          </button>
+          <sc-if value="{{ repoMenuOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="position:fixed;inset:0;z-index:20" onClick="{{ onToggleRepoMenu }}"></div>
+            <div style="position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 16px 40px -12px var(--shadow);padding:6px">
+              <div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:7px 8px 5px">Repositories</div>
+              <sc-for list="{{ repoMenu }}" as="r" hint-placeholder-count="3">
+                <button onClick="{{ r.onClick }}" style="{{ r.style }}">
+                  <span style="width:25px;height:25px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:#fff;background:{{ r.color }}">{{ r.initials }}</span>
+                  <span style="flex:1;text-align:left;min-width:0">
+                    <span style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span>
+                    <span style="display:block;font-size:10.5px;color:var(--muted)">{{ r.meta }}</span>
+                  </span>
+                  <sc-if value="{{ r.active }}" hint-placeholder-val="{{ false }}"><span style="color:var(--accent);font-size:13px">✓</span></sc-if>
+                </button>
+              </sc-for>
+              <button onClick="{{ onConnectRepo }}" style="width:100%;display:flex;align-items:center;gap:9px;padding:9px 8px;margin-top:4px;border-top:1px solid var(--border);font-size:12.5px;font-weight:600;color:var(--accent)" style-hover="background:var(--panel2)">
+                <span style="width:25px;text-align:center;font-size:15px">+</span>Connect another repo
+              </button>
+            </div>
+          </sc-if>
+        </div>
+
+        <!-- projects in repo -->
+        <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 6px 8px">Projects</div>
+        <sc-for list="{{ projectList }}" as="p" hint-placeholder-count="3">
+          <div style="margin-bottom:2px">
+            <button onClick="{{ p.onClick }}" style="{{ p.style }}">
+              <span style="width:7px;height:7px;border-radius:99px;flex:none;background:{{ p.dotColor }}"></span>
+              <span style="flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span>
+              <span style="font-size:10px;color:var(--muted)">{{ p.statusLabel }}</span>
+            </button>
+            <sc-if value="{{ p.active }}" hint-placeholder-val="{{ true }}">
+              <div style="margin:3px 0 7px 12px;padding-left:13px;border-left:1.5px solid var(--border2)">
+                <div style="display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--ink2)">
+                  <span style="width:16px;display:inline-flex;justify-content:center;font-size:12px;color:{{ p.phaseColor }}">{{ p.phaseIcon }}</span>
+                  <span style="flex:1;text-align:left">{{ p.phaseLabel }}</span>
+                  <span style="width:6px;height:6px;border-radius:99px;background:{{ p.dotColor }}"></span>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+        <button onClick="{{ onNewProject }}" style="display:flex;align-items:center;gap:7px;padding:8px 10px;margin-top:5px;border-radius:9px;font-size:12.5px;font-weight:600;color:var(--ink2);border:1px dashed var(--border2)" style-hover="border-color:var(--accent);color:var(--accent)">
+          <span style="width:16px;text-align:center;font-size:14px">+</span>New project
+        </button>
+
+        <div style="flex:1"></div>
+        <button onClick="{{ onOpenSettings }}" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;color:var(--ink2)" style-hover="background:var(--panel2)">
+          <span style="width:18px;display:inline-flex;justify-content:center">⚙</span> Settings
+        </button>
+      </nav>
+
+      <!-- ===== main ===== -->
+      <main style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);position:relative">
+
+        <!-- CONNECT -->
+        <sc-if value="{{ isConnect }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px">
+            <div style="width:760px;max-width:100%;display:flex;gap:0;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--panel);box-shadow:0 12px 40px -16px var(--shadow)">
+              <!-- checklist -->
+              <div style="width:248px;flex:none;background:var(--panel2);padding:28px 24px;border-right:1px solid var(--border)">
+                <div style="font-family:Newsreader,serif;font-size:24px;color:var(--ink);margin-bottom:4px">Connect a repo</div>
+                <div style="font-size:13px;color:var(--ink2);line-height:1.5;margin-bottom:26px">Point Arbor at an existing local checkout. We never clone.</div>
+                <sc-for list="{{ connectChecklist }}" as="c" hint-placeholder-count="3">
+                  <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:20px">
+                    <div style="{{ c.dotStyle }}">{{ c.mark }}</div>
+                    <div>
+                      <div style="font-size:13.5px;font-weight:600;color:{{ c.titleColor }}">{{ c.title }}</div>
+                      <div style="font-size:12px;color:var(--muted);margin-top:2px">{{ c.sub }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <!-- step body -->
+              <div style="flex:1;padding:32px 30px;display:flex;flex-direction:column;min-height:340px">
+                <sc-if value="{{ cs0 }}" hint-placeholder-val="{{ true }}">
+                  <div style="flex:1">
+                    <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);margin-bottom:10px">Step 1</div>
+                    <div style="font-family:Newsreader,serif;font-size:23px;color:var(--ink);margin-bottom:18px">Select local repository</div>
+                    <div style="border:1.5px dashed var(--border2);border-radius:12px;padding:26px;text-align:center;background:var(--bg)">
+                      <div style="font-size:30px;margin-bottom:8px">📂</div>
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink)">~/code/arbor</div>
+                      <div style="font-size:12px;color:var(--muted);margin-top:4px">git repository · clean working tree</div>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ cs1 }}" hint-placeholder-val="{{ false }}">
+                  <div style="flex:1">
+                    <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);margin-bottom:10px">Step 2</div>
+                    <div style="font-family:Newsreader,serif;font-size:23px;color:var(--ink);margin-bottom:6px">GitHub remote detected</div>
+                    <div style="font-size:13px;color:var(--ink2);margin-bottom:18px"><code style="font-family:'JetBrains Mono',monospace">origin</code> is a GitHub remote — using it by default.</div>
+                    <div style="border:1.5px solid var(--accent);border-radius:12px;padding:16px;background:var(--accent-soft);display:flex;align-items:center;gap:12px">
+                      <span style="width:18px;height:18px;border-radius:99px;border:5px solid var(--accent);flex:none"></span>
+                      <div><div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink)">origin → github.com/nicklausroach/arbor</div><div style="font-size:12px;color:var(--ink2);margin-top:2px">default branch: <code style="font-family:'JetBrains Mono',monospace">main</code></div></div>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ cs2 }}" hint-placeholder-val="{{ false }}">
+                  <div style="flex:1">
+                    <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);margin-bottom:10px">Step 3</div>
+                    <div style="font-family:Newsreader,serif;font-size:23px;color:var(--ink);margin-bottom:6px">Authorize GitHub</div>
+                    <div style="font-size:13px;color:var(--ink2);margin-bottom:18px;line-height:1.5">Arbor uses GitHub API auth to read issues & PRs. Tokens are stored in your OS keychain — never in the local database.</div>
+                    <sc-if value="{{ authDone }}" hint-placeholder-val="{{ false }}">
+                      <div style="border:1.5px solid var(--accent);border-radius:12px;padding:16px;background:var(--accent-soft);display:flex;align-items:center;gap:12px;color:var(--ink)">
+                        <span style="font-size:18px;color:var(--accent)">✓</span><div><div style="font-size:13.5px;font-weight:600">API access verified</div><div style="font-size:12px;color:var(--ink2)">scopes: repo · read:org · token in keychain</div></div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ authPending }}" hint-placeholder-val="{{ true }}">
+                      <button onClick="{{ onAuthorize }}" style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-radius:10px;background:var(--ink);color:var(--bg);font-size:14px;font-weight:600">
+                        <span>{{ authBtnIcon }}</span>{{ authBtnLabel }}
+                      </button>
+                    </sc-if>
+                  </div>
+                </sc-if>
+
+                <div style="display:flex;justify-content:flex-end;gap:10px;padding-top:18px;border-top:1px solid var(--border);margin-top:18px">
+                  <button onClick="{{ onConnectNext }}" style="{{ connectNextStyle }}">{{ connectNextLabel }}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- PLAN -->
+        <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ false }}">
+          <!-- context bar -->
+          <div style="height:58px;flex:none;display:flex;align-items:center;gap:16px;padding:0 22px;border-bottom:1px solid var(--border);background:var(--panel)">
+            <div style="flex:none">
+              <div style="font-family:Newsreader,serif;font-size:18px;color:var(--ink);line-height:1.1;white-space:nowrap">{{ projectTitle }}</div>
+              <div style="font-size:11.5px;color:var(--muted)">{{ ticketCount }} draft tickets · planning</div>
+            </div>
+            <span style="padding:4px 11px;border-radius:99px;font-size:11.5px;font-weight:600;background:var(--panel2);color:var(--ink2);border:1px solid var(--border)">Draft</span>
+            <div style="flex:1"></div>
+            <div style="display:flex;align-items:center;gap:7px">
+              <span style="font-size:11.5px;color:var(--muted)">versions</span>
+              <sc-for list="{{ versionChips }}" as="v" hint-placeholder-count="3">
+                <button onClick="{{ v.onClick }}" style="{{ v.style }}">{{ v.label }}</button>
+              </sc-for>
+            </div>
+            <button onClick="{{ onOpenApprove }}" style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:9px;background:var(--accent);color:#fff;font-size:13.5px;font-weight:600;box-shadow:0 2px 8px -2px var(--accent)" style-hover="filter:brightness(1.06)">Approve plan →</button>
+          </div>
+
+          <div style="flex:1;display:flex;min-height:0">
+            <!-- chat -->
+            <div style="width:362px;flex:none;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--panel)">
+              <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-size:12.5px;font-weight:600;color:var(--ink2);display:flex;align-items:center;gap:8px"><span style="width:7px;height:7px;border-radius:99px;background:var(--accent)"></span>Planner</div>
+              <div style="flex:1;overflow:auto;padding:18px 18px 8px;display:flex;flex-direction:column;gap:14px">
+                <sc-for list="{{ messages }}" as="m" hint-placeholder-count="5">
+                  <div style="{{ m.wrapStyle }}">
+                    <sc-if value="{{ m.isTool }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink2);background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 10px;display:inline-flex;align-items:center;gap:8px"><span style="color:var(--accent)">{{ m.tag }}</span>{{ m.text }}</div>
+                    </sc-if>
+                    <sc-if value="{{ m.isBubble }}" hint-placeholder-val="{{ true }}">
+                      <div style="{{ m.bubbleStyle }}">{{ m.text }}</div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="padding:12px 14px;border-top:1px solid var(--border)">
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px">
+                  <span style="font-size:11px;color:var(--muted);padding:3px 0">pinned:</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink2);background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:3px 8px">src/server/db/</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink2);background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:3px 8px">src/routes/</span>
+                </div>
+                <div style="display:flex;gap:8px;align-items:flex-end;background:var(--bg);border:1px solid var(--border2);border-radius:11px;padding:8px 8px 8px 12px">
+                  <textarea value="{{ chatInput }}" onInput="{{ onChatInput }}" placeholder="Revise the plan…" rows="1" style="flex:1;resize:none;border:none;outline:none;background:none;color:var(--ink);font-size:13px;line-height:1.4;max-height:80px"></textarea>
+                  <button onClick="{{ onSendChat }}" style="width:30px;height:30px;flex:none;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px">↑</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- DAG canvas -->
+            <div onWheel="{{ onCanvasWheel }}" onPointerDown="{{ onCanvasDown }}" onPointerMove="{{ onCanvasMove }}" onPointerUp="{{ onCanvasUp }}" onDoubleClick="{{ onCanvasReset }}" style="{{ canvasViewportStyle }}" style-active="cursor:grabbing">
+              <div style="{{ canvasLayerStyle }}">
+                <svg width="{{ canvasW }}" height="{{ canvasH }}" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none">
+                  <sc-for list="{{ edges }}" as="e" hint-placeholder-count="7">
+                    <path d="{{ e.d }}" fill="none" stroke="{{ e.color }}" stroke-width="{{ e.w }}"></path>
+                  </sc-for>
+                </svg>
+                <sc-for list="{{ nodes }}" as="n" hint-placeholder-count="7">
+                  <button onClick="{{ n.onSelect }}" style="{{ n.cardStyle }}">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)">#{{ n.num }}</span>
+                      <span style="font-size:10px;font-weight:600;letter-spacing:.02em;padding:2px 8px;border-radius:99px;color:{{ n.color }};background:{{ n.soft }}">{{ n.statusLabel }}</span>
+                    </div>
+                    <div style="font-size:13px;font-weight:600;line-height:1.28;color:var(--ink)">{{ n.title }}</div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.metaText }}</div>
+                  </button>
+                </sc-for>
+              </div>
+
+              <!-- inspector (plan) -->
+              <sc-if value="{{ hasInspector }}" hint-placeholder-val="{{ false }}">
+                <div data-nopan style="position:absolute;top:14px;right:14px;bottom:14px;width:336px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 44px -16px var(--shadow);display:flex;flex-direction:column;overflow:hidden">
+                  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);padding-top:5px">#{{ insp.num }}</span>
+                    <input value="{{ insp.title }}" onInput="{{ onInspTitle }}" style="flex:1;border:none;outline:none;background:none;font-family:Newsreader,serif;font-size:18px;font-weight:600;color:var(--ink);border-bottom:1px solid transparent" style-focus="border-bottom-color:var(--accent)">
+                    <button onClick="{{ onCloseInspector }}" style="color:var(--muted);font-size:18px;line-height:1;padding:2px">×</button>
+                  </div>
+                  <div style="flex:1;overflow:auto;padding:16px">
+                    <div style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Problem</div>
+                    <div style="font-size:13px;color:var(--ink2);line-height:1.5;margin-bottom:18px">{{ insp.problem }}</div>
+
+                    <div style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Acceptance criteria</div>
+                    <sc-for list="{{ insp.ac }}" as="a" hint-placeholder-count="3">
+                      <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;group">
+                        <span style="width:15px;height:15px;border-radius:4px;border:1.5px solid var(--border2);flex:none;margin-top:2px"></span>
+                        <span style="flex:1;font-size:12.5px;color:var(--ink);line-height:1.45">{{ a.text }}</span>
+                        <button onClick="{{ a.onRemove }}" style="color:var(--muted);font-size:13px;padding:0 2px">×</button>
+                      </div>
+                    </sc-for>
+
+                    <div style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px">Depends on</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+                      <sc-for list="{{ insp.deps }}" as="d" hint-placeholder-count="2">
+                        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;background:var(--accent-soft);color:var(--ink);border:1px solid var(--border);border-radius:7px;padding:4px 6px 4px 9px"><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--accent)">#{{ d.num }}</span>{{ d.title }}<button onClick="{{ d.onRemove }}" style="color:var(--muted);font-size:13px;margin-left:2px">×</button></span>
+                      </sc-for>
+                      <sc-if value="{{ insp.noDeps }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 0">Root ticket — no upstream</span></sc-if>
+                    </div>
+                    <sc-if value="{{ insp.hasAddable }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+                        <sc-for list="{{ insp.addable }}" as="d" hint-placeholder-count="2">
+                          <button onClick="{{ d.onAdd }}" style="font-size:12px;color:var(--ink2);border:1px dashed var(--border2);border-radius:7px;padding:4px 9px" style-hover="border-color:var(--accent);color:var(--accent)">+ #{{ d.num }} {{ d.title }}</button>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </div>
+                  <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px">
+                    <button onClick="{{ onSplit }}" style="flex:1;font-size:12.5px;font-weight:600;color:var(--ink2);background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:9px">Split</button>
+                    <button onClick="{{ onMerge }}" style="flex:1;font-size:12.5px;font-weight:600;color:var(--ink2);background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:9px">Merge…</button>
+                    <button onClick="{{ onDeleteTicket }}" style="font-size:12.5px;font-weight:600;color:oklch(0.57 0.14 28);background:oklch(0.92 0.05 28 / .5);border:1px solid oklch(0.8 0.08 28 / .4);border-radius:8px;padding:9px 14px">Delete</button>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- RUN -->
+        <sc-if value="{{ isRun }}" hint-placeholder-val="{{ false }}">
+          <div style="height:58px;flex:none;display:flex;align-items:center;gap:16px;padding:0 22px;border-bottom:1px solid var(--border);background:var(--panel)">
+            <div style="flex:none">
+              <div style="font-family:Newsreader,serif;font-size:18px;color:var(--ink);line-height:1.1;white-space:nowrap">{{ projectTitle }}</div>
+              <div style="font-size:11.5px;color:var(--muted)">milestone <code style="font-family:'JetBrains Mono',monospace">arbor: passwordless-auth (a3f1)</code></div>
+            </div>
+            <span style="display:flex;align-items:center;gap:7px;padding:4px 12px;border-radius:99px;font-size:11.5px;font-weight:600;background:oklch(0.9 0.05 245 / .4);color:oklch(0.5 0.1 245);border:1px solid oklch(0.8 0.06 245 / .4)"><span style="width:7px;height:7px;border-radius:99px;background:oklch(0.55 0.1 245);animation:ar-pulse 1.4s infinite"></span>Running</span>
+            <div style="flex:1"></div>
+            <div style="display:flex;align-items:center;gap:16px;font-size:12px;color:var(--ink2)">
+              <span><b style="color:var(--ink)">{{ stat.merged }}</b> merged</span>
+              <span><b style="color:var(--ink)">{{ stat.running }}</b> running</span>
+              <span><b style="color:var(--ink)">{{ stat.ready }}</b> ready</span>
+              <span>concurrency <b style="color:var(--ink)">{{ concurrency }}</b></span>
+            </div>
+            <button onClick="{{ onRefresh }}" style="display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:9px;background:var(--panel2);border:1px solid var(--border);color:var(--ink);font-size:13px;font-weight:600">
+              <span style="{{ refreshIconStyle }}">↻</span>{{ refreshLabel }}
+            </button>
+          </div>
+
+          <div style="flex:1;display:flex;min-height:0">
+            <div onWheel="{{ onCanvasWheel }}" onPointerDown="{{ onCanvasDown }}" onPointerMove="{{ onCanvasMove }}" onPointerUp="{{ onCanvasUp }}" onDoubleClick="{{ onCanvasReset }}" style="{{ canvasViewportStyle }}" style-active="cursor:grabbing">
+              <div style="{{ canvasLayerStyle }}">
+                <svg width="{{ canvasW }}" height="{{ canvasH }}" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none">
+                  <sc-for list="{{ edges }}" as="e" hint-placeholder-count="7">
+                    <path d="{{ e.d }}" fill="none" stroke="{{ e.color }}" stroke-width="{{ e.w }}" stroke-dasharray="{{ e.dash }}" style="{{ e.anim }}"></path>
+                  </sc-for>
+                </svg>
+                <sc-for list="{{ nodes }}" as="n" hint-placeholder-count="7">
+                  <button onClick="{{ n.onSelect }}" style="{{ n.cardStyle }}">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)">#{{ n.num }}</span>
+                      <span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;letter-spacing:.02em;padding:2px 8px;border-radius:99px;color:{{ n.color }};background:{{ n.soft }}"><span style="{{ n.dotStyle }}"></span>{{ n.statusLabel }}</span>
+                    </div>
+                    <div style="font-size:13px;font-weight:600;line-height:1.28;color:var(--ink)">{{ n.title }}</div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.metaText }}</div>
+                  </button>
+                </sc-for>
+              </div>
+
+              <!-- run drawer -->
+              <sc-if value="{{ hasDrawer }}" hint-placeholder-val="{{ false }}">
+                <div data-nopan style="position:absolute;top:14px;right:14px;bottom:14px;width:392px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 44px -16px var(--shadow);display:flex;flex-direction:column;overflow:hidden">
+                  <div style="padding:15px 16px;border-bottom:1px solid var(--border)">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)">#{{ dr.num }}</span>
+                      <div style="flex:1"></div>
+                      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;color:{{ dr.color }};background:{{ dr.soft }}">{{ dr.statusLabel }}</span>
+                      <button onClick="{{ onCloseDrawer }}" style="color:var(--muted);font-size:18px;line-height:1;padding:2px">×</button>
+                    </div>
+                    <div style="font-family:Newsreader,serif;font-size:19px;color:var(--ink);margin-top:8px;line-height:1.2">{{ dr.title }}</div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink2);margin-top:8px;display:flex;align-items:center;gap:6px"><span style="color:var(--muted)">branch</span>{{ dr.branch }}</div>
+                  </div>
+                  <div style="flex:1;overflow:auto;padding:16px">
+                    <sc-if value="{{ dr.live }}" hint-placeholder-val="{{ false }}">
+                      <button onClick="{{ onConnectSession }}" style="width:100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:12px;border-radius:11px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:600;margin-bottom:14px" style-hover="filter:brightness(1.12)">
+                        <span style="width:7px;height:7px;border-radius:99px;background:#62C554;animation:ar-pulse 1.3s infinite"></span>
+                        Connect to session
+                      </button>
+                    </sc-if>
+                    <sc-if value="{{ dr.hasPr }}" hint-placeholder-val="{{ true }}">
+                      <a href="#" style="{{ dr.prStyle }}">
+                        <span style="font-size:14px">{{ dr.prIcon }}</span>
+                        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--ink)">{{ dr.prTitle }}</div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink2);margin-top:1px">{{ dr.prMeta }}</div></div>
+                        <span style="font-size:12px;color:var(--muted)">↗</span>
+                      </a>
+                    </sc-if>
+                    <sc-if value="{{ dr.gated }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:12.5px;color:var(--ink2);background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px;line-height:1.5">{{ dr.gateText }}</div>
+                    </sc-if>
+
+                    <div style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px">Runs</div>
+                    <sc-for list="{{ dr.runs }}" as="r" hint-placeholder-count="1">
+                      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;margin-bottom:7px;background:var(--bg)">
+                        <span style="{{ r.dotStyle }}"></span>
+                        <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink)">{{ r.label }}</span>
+                        <div style="flex:1"></div>
+                        <span style="font-size:11px;color:var(--muted)">{{ r.meta }}</span>
+                      </div>
+                    </sc-for>
+
+                    <sc-if value="{{ dr.hasLog }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px">Agent log</div>
+                      <div style="background:var(--logbg);border:1px solid var(--border);border-radius:9px;padding:11px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.65;color:var(--ink2);max-height:170px;overflow:auto;white-space:pre-wrap">{{ dr.log }}</div>
+                    </sc-if>
+                  </div>
+                  <sc-if value="{{ dr.canFollow }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding:12px 14px;border-top:1px solid var(--border)">
+                      <div style="font-size:11px;color:var(--muted);margin-bottom:7px">Follow-up — reuses the same worktree, branch & PR</div>
+                      <div style="display:flex;gap:8px;align-items:flex-end;background:var(--bg);border:1px solid var(--border2);border-radius:11px;padding:8px 8px 8px 12px">
+                        <textarea value="{{ followInput }}" onInput="{{ onFollowInput }}" placeholder="Ask the agent to revise the PR…" rows="1" style="flex:1;resize:none;border:none;outline:none;background:none;color:var(--ink);font-size:13px;line-height:1.4;max-height:70px"></textarea>
+                        <button onClick="{{ onSendFollow }}" style="width:30px;height:30px;flex:none;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px">↑</button>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- INTEGRATED TERMINAL (docked) -->
+        <sc-if value="{{ sessionOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:none;height:300px;display:flex;flex-direction:column;background:#14110d;border-top:1px solid var(--border);font-family:'JetBrains Mono',monospace;box-shadow:0 -10px 30px -16px rgba(0,0,0,.5)">
+            <div style="height:36px;flex:none;display:flex;align-items:center;gap:9px;padding:0 8px 0 14px;background:rgba(255,255,255,.045);border-bottom:1px solid rgba(255,255,255,.07)">
+              <span style="width:7px;height:7px;border-radius:99px;background:#62C554;animation:ar-pulse 1.3s infinite"></span>
+              <span style="font-size:11.5px;font-weight:600;color:rgba(255,255,255,.84)">agent session</span>
+              <span style="font-size:11px;color:rgba(255,255,255,.42)">#{{ sessionNum }}</span>
+              <span style="width:1px;height:14px;background:rgba(255,255,255,.12)"></span>
+              <span style="font-size:11px;color:rgba(255,255,255,.36);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px">{{ sessionBranch }}</span>
+              <div style="flex:1"></div>
+              <span style="font-size:10.5px;color:rgba(255,255,255,.3)">attached · stdin live</span>
+              <button onClick="{{ onCloseSession }}" title="Close terminal" style="width:26px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.55);font-size:16px;line-height:1" style-hover="background:rgba(255,255,255,.08);color:#fff">×</button>
+            </div>
+            <div ref="{{ termRef }}" style="flex:1;overflow:auto;padding:14px 16px;font-size:12px;line-height:1.7">
+              <sc-for list="{{ sessionLines }}" as="l" hint-placeholder-count="5">
+                <div style="{{ l.style }}"><span style="{{ l.prefixStyle }}">{{ l.prefix }}</span>{{ l.t }}</div>
+              </sc-for>
+              <div style="display:flex;align-items:center;gap:9px;color:rgba(255,255,255,.4);margin-top:2px">
+                <span style="color:#86b6f2">◆</span><span>agent</span>
+                <span style="width:8px;height:14px;background:#62C554;display:inline-block;animation:ar-pulse 1s steps(1,end) infinite"></span>
+              </div>
+            </div>
+            <div style="flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.025)">
+              <span style="font-size:13px;color:#62C554">›</span>
+              <input value="{{ sessionInput }}" onInput="{{ onSessionInput }}" onKeyDown="{{ onSessionKey }}" placeholder="Type to steer the agent…" style="flex:1;border:none;outline:none;background:none;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#e8e2d6">
+              <button onClick="{{ onSendSession }}" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:5px 10px" style-hover="background:rgba(255,255,255,.08)">send ⏎</button>
+            </div>
+          </div>
+        </sc-if>
+      </main>
+    </div>
+  </div>
+
+  <!-- ===== APPROVE MODAL ===== -->
+  <sc-if value="{{ approveOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(20,14,6,.42);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:50" onClick="{{ onBackdropApprove }}">
+      <div onClick="{{ stop }}" style="width:480px;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 30px 80px -20px rgba(20,14,6,.6);overflow:hidden">
+        <div style="padding:22px 24px 16px">
+          <div style="font-family:Newsreader,serif;font-size:23px;color:var(--ink)">Approve & create on GitHub</div>
+          <div style="font-size:13px;color:var(--ink2);margin-top:4px;line-height:1.5">Locks graph <b>v{{ currentVersion }}</b> as authoritative and creates durable records. Draft edits stop here.</div>
+        </div>
+        <div style="padding:0 24px">
+          <sc-for list="{{ approveSteps }}" as="s" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--border)">
+              <div style="{{ s.iconStyle }}">{{ s.icon }}</div>
+              <div style="flex:1"><div style="font-size:13.5px;font-weight:600;color:var(--ink)">{{ s.title }}</div><div style="font-size:12px;color:var(--muted)">{{ s.sub }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+        <label style="display:flex;align-items:center;gap:10px;margin:8px 24px 0;padding:12px 0;border-top:1px solid var(--border);cursor:pointer">
+          <button onClick="{{ onToggleStartNow }}" style="{{ startNowBox }}">{{ startNowMark }}</button>
+          <span style="font-size:13px;color:var(--ink)">Start execution now <span style="color:var(--muted)">— begin scheduling root tickets immediately</span></span>
+        </label>
+        <div style="padding:16px 24px 22px;display:flex;gap:10px;justify-content:flex-end">
+          <button onClick="{{ onCloseApprove }}" style="padding:10px 16px;border-radius:9px;font-size:13.5px;font-weight:600;color:var(--ink2);background:var(--panel2);border:1px solid var(--border)">Cancel</button>
+          <button onClick="{{ onConfirmApprove }}" style="{{ confirmStyle }}">{{ confirmLabel }}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== SETTINGS MODAL ===== -->
+  <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(20,14,6,.42);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:50" onClick="{{ onCloseSettings }}">
+      <div onClick="{{ stop }}" style="width:520px;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 30px 80px -20px rgba(20,14,6,.6);overflow:hidden">
+        <div style="padding:22px 24px 18px;border-bottom:1px solid var(--border)">
+          <div style="font-family:Newsreader,serif;font-size:23px;color:var(--ink)">Settings</div>
+        </div>
+        <div style="padding:22px 24px;display:flex;flex-direction:column;gap:22px">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px">GitHub authentication</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">
+              <span style="font-size:16px;color:var(--accent)">✓</span>
+              <div style="flex:1"><div style="font-size:13px;color:var(--ink)">nicklausroach</div><div style="font-size:11.5px;color:var(--muted)">token in OS keychain · scopes: repo, read:org</div></div>
+              <button style="font-size:12.5px;color:var(--ink2);border:1px solid var(--border);border-radius:7px;padding:6px 11px;background:var(--panel2)">Reauthorize</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px">Agent command</div>
+            <input value="{{ agentCmd }}" onInput="{{ onAgentCmd }}" style="width:100%;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink);background:var(--bg);border:1px solid var(--border2);border-radius:10px;padding:11px 13px;outline:none" style-focus="border-color:var(--accent)">
+            <div style="font-size:11.5px;color:var(--muted);margin-top:6px">Run per ticket with cwd set to the worktree; prompt is piped via stdin.</div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px">Max concurrency</div>
+            <div style="display:flex;gap:8px">
+              <sc-for list="{{ concurrencyOpts }}" as="c" hint-placeholder-count="4">
+                <button onClick="{{ c.onClick }}" style="{{ c.style }}">{{ c.label }}</button>
+              </sc-for>
+            </div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:6px">Global limit on simultaneously running agents. Default 1 is safest.</div>
+          </div>
+        </div>
+        <div style="padding:16px 24px 22px;display:flex;justify-content:flex-end;border-top:1px solid var(--border)">
+          <button onClick="{{ onCloseSettings }}" style="padding:10px 18px;border-radius:9px;font-size:13.5px;font-weight:600;color:#fff;background:var(--accent)">Done</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1300,&quot;height&quot;:840}}">
+class Component extends DCLogic {
+  state = {
+    dark: false,
+    repoMenuOpen: false,
+    currentRepoId: 'r1',
+    activeProjectName: 'Passwordless auth',
+    repos: [
+      { id:'r1', owner:'nicklausroach', name:'arbor', branch:'main', initials:'AR', color:'oklch(0.52 0.09 150)',
+        projects:[ {name:'Passwordless auth', status:'draft'}, {name:'Refactor payments core', status:'draft'}, {name:'Docs site overhaul', status:'done'} ] },
+      { id:'r2', owner:'nicklausroach', name:'orchard-ui', branch:'main', initials:'OR', color:'oklch(0.58 0.1 60)',
+        projects:[ {name:'Component library v2', status:'running'}, {name:'Dark mode tokens', status:'draft'} ] },
+      { id:'r3', owner:'acme', name:'billing-service', branch:'develop', initials:'BS', color:'oklch(0.55 0.1 300)',
+        projects:[ {name:'Stripe webhook migration', status:'review'} ] },
+    ],
+    view: 'plan',
+    connectStep: 0,
+    authVerifying: false,
+    authDone: false,
+    chatInput: '',
+    followInput: '',
+    currentVersion: 3,
+    maxVersion: 3,
+    selectedId: null,
+    drawerId: 'T6',
+    approveOpen: false,
+    approveStep: -1,
+    approveRunning: false,
+    startNow: true,
+    settingsOpen: false,
+    concurrency: 1,
+    agentCmd: 'claude -p --dangerously-skip-permissions',
+    refreshing: false,
+    panX: 0, panY: 0, zoom: 1,
+    sessionOpen: false,
+    sessionTicketId: null,
+    sessionLines: [],
+    sessionInput: '',
+    messages: [
+      { role: 'user', text: 'Add passwordless auth: users sign in with an emailed magic link. Sessions persist and protect API routes.' },
+      { role: 'assistant', text: 'On it. Let me look at the data layer and routing before drafting tickets.' },
+      { role: 'tool', tag: 'read', text: 'src/server/db/schema.ts' },
+      { role: 'tool', tag: 'grep', text: '"createServer" · 4 matches' },
+      { role: 'assistant', text: 'Drizzle + a thin Express layer, no existing auth. I drafted 7 tickets as a DAG: schema first, then sessions + email in parallel, converging on the login endpoints and UI, tests last.' },
+      { role: 'user', text: 'Looks right. Split the login endpoint ticket — keep request and verify separate.' },
+      { role: 'assistant', text: 'Done — #4 is now two tickets. Graph re-validated, no cycles. This is version 3.' },
+    ],
+    tickets: [
+      { id:'T1', num:1, title:'Add auth schema & migrations', problem:'There is no place to store users, magic-link tokens, or sessions. Add the tables every downstream ticket depends on.', ac:['users, magic_tokens, sessions tables created','Drizzle migration runs clean on a fresh db','Token + session rows expire via TTL column'], deps:[], run:'merged', branch:'arbor/passwordless-auth/1-auth-schema', pr:{num:112,state:'merged',title:'Add auth schema & migrations'} },
+      { id:'T2', num:2, title:'Session token service', problem:'Need signed, expiring session tokens issued and verified server-side.', ac:['issueSession() returns a signed token','verifySession() rejects expired/forged tokens','Secret read from env, never logged'], deps:['T1'], run:'merged', branch:'arbor/passwordless-auth/2-session-service', pr:{num:114,state:'merged',title:'Session token service'} },
+      { id:'T3', num:3, title:'Magic-link email sender', problem:'Users must receive a one-time sign-in link by email.', ac:['sendMagicLink(email) creates a token row','Email rendered from a template with the link','Provider failures surface as typed errors'], deps:['T1'], run:'review', branch:'arbor/passwordless-auth/3-magic-link-email', pr:{num:117,state:'open',title:'Magic-link email sender'} },
+      { id:'T4', num:4, title:'Login request endpoint', problem:'Public endpoint that accepts an email and triggers a magic link.', ac:['POST /auth/request validates email','Calls sendMagicLink and always 200s (no enumeration)','Rate-limited per IP'], deps:['T2','T3'], run:'running', branch:'arbor/passwordless-auth/4-login-request', pr:null },
+      { id:'T5', num:5, title:'Login verify endpoint', problem:'Consume a magic-link token and establish a session.', ac:['GET /auth/verify exchanges token for session cookie','Single-use token is burned on success','Invalid/expired token returns 401'], deps:['T2','T3'], run:'ready', branch:'arbor/passwordless-auth/5-login-verify', pr:null },
+      { id:'T6', num:6, title:'Auth middleware & route guards', problem:'Protected API routes must require a valid session.', ac:['requireAuth middleware attaches req.user','401 on missing/invalid session','Applied to all /api/* except auth routes'], deps:['T2'], run:'running', branch:'arbor/passwordless-auth/6-auth-middleware', pr:null },
+      { id:'T7', num:7, title:'End-to-end auth tests', problem:'Prove the full magic-link flow works and routes are guarded.', ac:['Request→verify→access protected route passes','Expired token path covered','Guard rejects unauthenticated request'], deps:['T5','T6'], run:'blocked', branch:'arbor/passwordless-auth/7-e2e-auth-tests', pr:null },
+    ],
+  };
+
+  setTermEl = (el) => { this._termEl = el; };
+
+  componentDidUpdate() {
+    if (this.state.sessionOpen && this._termEl) this._termEl.scrollTop = this._termEl.scrollHeight;
+  }
+  componentWillUnmount() { clearInterval(this._sessionTimer); }
+
+  ambientPool() {
+    return [
+      { k:'out',   t:'· drafting POST /auth/request handler' },
+      { k:'out',   t:'· validating body against the email schema' },
+      { k:'out',   t:'· always returns 200 to avoid user enumeration' },
+      { k:'cmd',   t:'$ npm run test -- auth/request' },
+      { k:'out',   t:'  ✓ rejects a malformed email' },
+      { k:'out',   t:'  ✓ issues a magic link for a known address' },
+      { k:'ok',    t:'✓ 6 passing · 0 failing · 1.2s' },
+      { k:'out',   t:'· wiring per-IP rate limit (10 / min)' },
+      { k:'agent', t:'Endpoint scaffolded — hardening edge cases next.' },
+    ];
+  }
+  openSession(id) {
+    const t = this.state.tickets.find(x => x.id === id);
+    if (!t) return;
+    const seed = [
+      { k:'sys',   t:'connecting to agent session…' },
+      { k:'sys',   t:'attached · worktree '+t.branch+' · pid 48213' },
+      { k:'agent', t:'Working on #'+t.num+' — '+t.title },
+      { k:'cmd',   t:'claude -p --dangerously-skip-permissions < prompt.md' },
+      { k:'out',   t:'· reading the issue contract & acceptance criteria' },
+    ];
+    this._queue = this.ambientPool();
+    this.setState({ sessionOpen:true, sessionTicketId:id, sessionLines:seed, sessionInput:'' });
+    this.startSessionLoop();
+  }
+  startSessionLoop() {
+    clearInterval(this._sessionTimer);
+    this._sessionTimer = setInterval(() => {
+      if (!this.state.sessionOpen) { clearInterval(this._sessionTimer); return; }
+      if (!this._queue || !this._queue.length) this._queue = this.ambientPool();
+      this.pushSessionLine(this._queue.shift());
+    }, 1500);
+  }
+  pushSessionLine(l) {
+    this.setState(st => ({ sessionLines: [...st.sessionLines, l].slice(-100) }));
+  }
+  closeSession() { clearInterval(this._sessionTimer); this.setState({ sessionOpen:false }); }
+  sendSessionPrompt() {
+    const v = this.state.sessionInput.trim(); if (!v) return;
+    this.pushSessionLine({ k:'user', t:v });
+    this.setState({ sessionInput:'' });
+    this._queue = [
+      { k:'sys',   t:'⌁ steering prompt delivered to agent stdin' },
+      { k:'agent', t:'Got it — folding that into the current run.' },
+      { k:'out',   t:'· re-reading your guidance' },
+      { k:'out',   t:'· adjusting the in-progress changes' },
+      ...(this._queue || []),
+    ];
+  }
+
+  statusMeta(s) {
+    const m = {
+      draft:   { label:'Draft',     color:'var(--muted)',          soft:'var(--panel2)' },
+      blocked: { label:'Blocked',   color:'oklch(0.62 0.1 65)',    soft:'oklch(0.92 0.05 65 / 0.45)' },
+      ready:   { label:'Ready',     color:'oklch(0.55 0.09 150)',  soft:'oklch(0.9 0.05 150 / 0.45)' },
+      running: { label:'Running',   color:'oklch(0.54 0.1 245)',   soft:'oklch(0.9 0.05 245 / 0.45)' },
+      review:  { label:'In review', color:'oklch(0.54 0.11 300)',  soft:'oklch(0.9 0.05 300 / 0.45)' },
+      merged:  { label:'Merged',    color:'oklch(0.5 0.09 150)',   soft:'oklch(0.88 0.06 150 / 0.45)' },
+      failed:  { label:'Failed',    color:'oklch(0.57 0.14 28)',   soft:'oklch(0.9 0.06 28 / 0.45)' },
+    };
+    return m[s] || m.draft;
+  }
+
+  layout(run) {
+    const ts = this.state.tickets;
+    const byId = {}; ts.forEach(t => byId[t.id] = t);
+    const depth = {};
+    const calc = (id) => {
+      if (depth[id] != null) return depth[id];
+      const t = byId[id]; if (!t) return 0;
+      let d = 0; t.deps.forEach(p => { if (byId[p]) d = Math.max(d, calc(p) + 1); });
+      depth[id] = d; return d;
+    };
+    ts.forEach(t => calc(t.id));
+    const cols = {};
+    ts.forEach(t => { const c = depth[t.id]; (cols[c] = cols[c] || []).push(t); });
+    const colKeys = Object.keys(cols).map(Number).sort((a,b)=>a-b);
+    const NW=208, NH=92, HG=252, VG=34, midY=248;
+    const pos = {};
+    colKeys.forEach(c => {
+      const arr = cols[c];
+      const total = arr.length*NH + (arr.length-1)*VG;
+      let y = midY - total/2;
+      arr.forEach(t => { pos[t.id] = { x: c*HG + 30, y }; y += NH + VG; });
+    });
+    const selId = run ? this.state.drawerId : this.state.selectedId;
+    const nodes = ts.map(t => {
+      const m = this.statusMeta(run ? t.run : 'draft');
+      const p = pos[t.id];
+      const sel = selId === t.id;
+      const pulse = run && t.run === 'running';
+      return {
+        ...t, x:p.x, y:p.y, statusLabel:m.label, color:m.color, soft:m.soft,
+        metaText: run ? t.branch.replace('arbor/passwordless-auth/','…/') : (t.deps.length ? t.deps.length + ' upstream' : 'root ticket'),
+        dotStyle: 'width:6px;height:6px;border-radius:99px;flex:none;background:'+m.color+(pulse?';animation:ar-pulse 1.3s infinite':''),
+        cardStyle: 'position:absolute;left:'+p.x+'px;top:'+p.y+'px;width:208px;text-align:left;cursor:pointer;background:var(--panel);border:1px solid '+(sel?'var(--accent)':'var(--border)')+';border-left:3px solid '+m.color+';border-radius:11px;padding:12px 13px;box-shadow:'+(sel?'0 8px 24px -6px var(--shadow)':'0 1px 2px var(--shadow)')+';transition:box-shadow .15s,border-color .15s',
+        onSelect: () => run ? this.setState({ drawerId: t.id }) : this.setState({ selectedId: t.id }),
+      };
+    });
+    const edges = [];
+    ts.forEach(t => t.deps.forEach(p => {
+      const a = pos[p], b = pos[t.id]; if (!a || !b) return;
+      const sx=a.x+NW, sy=a.y+NH/2, tx=b.x, ty=b.y+NH/2;
+      const upMerged = run && byId[p] && byId[p].run === 'merged';
+      edges.push({
+        d:`M${sx},${sy} C${sx+64},${sy} ${tx-64},${ty} ${tx},${ty}`,
+        color: upMerged ? 'var(--accent)' : 'var(--border2)',
+        w: upMerged ? 2 : 1.5,
+        dash: upMerged ? '0' : '5 5',
+        anim: upMerged ? 'animation:ar-dash .8s linear infinite' : '',
+      });
+    }));
+    const maxCol = colKeys.length ? Math.max(...colKeys) : 0;
+    return { nodes, edges, canvasW: maxCol*HG + NW + 60, canvasH: 510 };
+  }
+
+  themeVars() {
+    return this.state.dark ? {
+      '--bg':'#1b1713','--panel':'#231f19','--panel2':'#2c271f','--ink':'#ece4d8','--ink2':'#b4a896','--muted':'#827667',
+      '--border':'#332d24','--border2':'#3f3829','--accent':'oklch(0.68 0.09 150)','--accent-soft':'oklch(0.32 0.05 150)',
+      '--shadow':'rgba(0,0,0,0.5)','--dot':'#2a2419','--logbg':'#14110d',
+    } : {
+      '--bg':'#f3f0e8','--panel':'#fbf9f3','--panel2':'#efeadd','--ink':'#2c2620','--ink2':'#6b6254','--muted':'#9a9080',
+      '--border':'#e5ded0','--border2':'#d7ceba','--accent':'oklch(0.52 0.08 150)','--accent-soft':'oklch(0.93 0.03 150)',
+      '--shadow':'rgba(70,55,30,0.16)','--dot':'#e0d8c7','--logbg':'#26221b',
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const run = s.view === 'run';
+    const isRunView = s.view === 'run';
+    const lay = (s.view === 'plan' || s.view === 'run') ? this.layout(run) : { nodes:[], edges:[], canvasW:600, canvasH:510 };
+
+    const rootStyle = Object.entries(this.themeVars()).map(([k,v])=>k+':'+v).join(';') +
+      ";font-family:'Hanken Grotesk',system-ui,sans-serif;background:var(--bg);min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;padding:20px;color:var(--ink);-webkit-font-smoothing:antialiased";
+
+    // a project is either being planned or executing — approval is the one-way gate
+    const phaseFor = (st) => st === 'draft' ? 'plan' : 'run';
+    const phaseInfo = (st) => st === 'draft'
+      ? { label:'Planning',  icon:'❋', color:'var(--muted)' }
+      : st === 'done'
+        ? { label:'Completed', icon:'✓', color:'oklch(0.5 0.09 150)' }
+        : { label:'Executing', icon:'▶', color:'oklch(0.55 0.1 245)' };
+
+    // repositories
+    const projMeta = { draft:{c:'var(--muted)',l:'Draft'}, running:{c:'oklch(0.54 0.1 245)',l:'Running'}, review:{c:'oklch(0.54 0.11 300)',l:'Review'}, done:{c:'oklch(0.5 0.09 150)',l:'Done'} };
+    const currentRepo = s.repos.find(r => r.id === s.currentRepoId) || s.repos[0];
+    const repoFull = currentRepo.owner + '/' + currentRepo.name;
+    const repoChip = { name: repoFull, branch: currentRepo.branch, initials: currentRepo.initials, color: currentRepo.color };
+    const repoMenu = s.repos.map(r => ({
+      name: r.owner + '/' + r.name, initials: r.initials, color: r.color,
+      meta: r.projects.length + ' project' + (r.projects.length>1?'s':'') + ' · ' + r.branch,
+      active: r.id === s.currentRepoId,
+      onClick: () => this.setState({ currentRepoId: r.id, repoMenuOpen: false, activeProjectName: r.projects[0].name, view: phaseFor(r.projects[0].status), selectedId: null }),
+      style: 'width:100%;display:flex;align-items:center;gap:9px;padding:8px;border-radius:8px;background:'+(r.id===s.currentRepoId?'var(--panel2)':'transparent'),
+    }));
+    const projectList = currentRepo.projects.map(p => {
+      const m = projMeta[p.status] || projMeta.draft;
+      const active = p.name === s.activeProjectName;
+      const ph = phaseInfo(p.status);
+      return { name:p.name, dotColor:m.c, statusLabel:m.l, active,
+        phaseLabel:ph.label, phaseIcon:ph.icon, phaseColor:ph.color,
+        onClick: () => this.setState({ activeProjectName: p.name, view: phaseFor(p.status), selectedId: null }),
+        style: 'width:100%;display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;font-size:13px;font-weight:'+(active?'600':'500')+';color:'+(active?'var(--ink)':'var(--ink2)')+';background:'+(active?'var(--panel2)':'transparent') };
+    });
+
+    // connect
+    const cstep = s.connectStep;
+    const checkDef = [
+      { title:'Local repository', sub:'~/code/arbor' },
+      { title:'GitHub remote', sub:'origin · nicklausroach/arbor' },
+      { title:'API access', sub:'token in OS keychain' },
+    ];
+    const connectChecklist = checkDef.map((c,i) => {
+      const done = i < cstep || (i===2 && s.authDone);
+      const cur = i === cstep && !(i===2 && s.authDone);
+      return { ...c, mark: done ? '✓' : (i+1),
+        titleColor: (done||cur) ? 'var(--ink)' : 'var(--muted)',
+        dotStyle: 'width:24px;height:24px;border-radius:99px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;'+(done?'background:var(--accent);color:#fff':(cur?'border:1.5px solid var(--accent);color:var(--accent)':'border:1.5px solid var(--border2);color:var(--muted)')) };
+    });
+    const authPending = !s.authDone;
+    const connectNextDisabled = cstep===2 && !s.authDone;
+    const connectNextLabel = cstep < 2 ? 'Continue' : (s.authDone ? 'Open project →' : 'Authorize first');
+    const connectNextStyle = 'padding:10px 18px;border-radius:9px;font-size:13.5px;font-weight:600;color:#fff;background:'+(connectNextDisabled?'var(--muted)':'var(--accent)')+';opacity:'+(connectNextDisabled?'.6':'1')+';cursor:'+(connectNextDisabled?'default':'pointer');
+
+    // messages
+    const messages = s.messages.map(m => {
+      const isTool = m.role === 'tool';
+      const isUser = m.role === 'user';
+      return { ...m, isTool, isBubble: !isTool,
+        wrapStyle: 'display:flex;flex-direction:column;align-items:'+(isUser?'flex-end':'flex-start'),
+        bubbleStyle: 'max-width:90%;font-size:13px;line-height:1.5;padding:10px 13px;border-radius:13px;'+(isUser
+          ? 'background:var(--accent);color:#fff;border-bottom-right-radius:4px'
+          : 'background:var(--bg);color:var(--ink);border:1px solid var(--border);border-bottom-left-radius:4px') };
+    });
+
+    // version chips
+    const versionChips = [1,2,3].map(v => ({ label:'v'+v, onClick: () => this.setState({ currentVersion: v }),
+      style:'font-family:\'JetBrains Mono\',monospace;font-size:11.5px;padding:4px 9px;border-radius:7px;border:1px solid '+(s.currentVersion===v?'var(--accent)':'var(--border)')+';color:'+(s.currentVersion===v?'var(--accent)':'var(--ink2)')+';background:'+(s.currentVersion===v?'var(--accent-soft)':'transparent') }));
+
+    // inspector (plan)
+    const sel = s.tickets.find(t => t.id === s.selectedId);
+    let insp = null;
+    if (sel && s.view === 'plan') {
+      const ac = sel.ac.map((text, i) => ({ text, onRemove: () => this.mutateTicket(sel.id, t => { t.ac = t.ac.filter((_,j)=>j!==i); }) }));
+      const depObjs = sel.deps.map(id => { const dt = s.tickets.find(x=>x.id===id); return { num:dt.num, title:dt.title, onRemove: () => this.mutateTicket(sel.id, t => { t.deps = t.deps.filter(x=>x!==id); }) }; });
+      const addable = s.tickets.filter(t => t.id!==sel.id && !sel.deps.includes(t.id) && t.num < sel.num)
+        .map(t => ({ num:t.num, title:t.title, onAdd: () => this.mutateTicket(sel.id, x => { x.deps = [...x.deps, t.id]; }) }));
+      insp = { num:sel.num, title:sel.title, problem:sel.problem, ac, deps:depObjs, noDeps: depObjs.length===0, addable, hasAddable: addable.length>0 };
+    }
+
+    // run drawer
+    const dr0 = s.tickets.find(t => t.id === s.drawerId);
+    let dr = null;
+    if (dr0 && isRunView) {
+      const m = this.statusMeta(dr0.run);
+      const hasPr = !!dr0.pr;
+      const prMerged = hasPr && dr0.pr.state === 'merged';
+      const runs = [];
+      if (dr0.run === 'merged') runs.push({ label:'run #1', meta:'succeeded · PR merged', dotStyle:this.runDot('succeeded') });
+      else if (dr0.run === 'review') runs.push({ label:'run #1', meta:'succeeded · PR open', dotStyle:this.runDot('succeeded') });
+      else if (dr0.run === 'running') runs.push({ label:'run #1', meta:'running · 2m12s', dotStyle:this.runDot('running') });
+      else if (dr0.run === 'ready') runs.push({ label:'—', meta:'queued just-in-time', dotStyle:this.runDot('queued') });
+      else runs.push({ label:'—', meta:'blocked by upstream', dotStyle:this.runDot('blocked') });
+
+      const logs = {
+        merged:'$ claude < prompt.md\n✓ implemented session_service.ts\n✓ tests pass (14)\n✓ pushed arbor/…/2-session-service\n→ PR #114 opened\n→ merged into main',
+        review:'$ claude < prompt.md\n✓ added mailer + template\n✓ tests pass (9)\n✓ pushed branch\n→ PR #117 opened\nawaiting review',
+        running:'$ claude < prompt.md\n· reading issue contract\n· writing /auth/request handler\n· running test suite…',
+      };
+      dr = {
+        num:dr0.num, title:dr0.title, branch:dr0.branch, statusLabel:m.label, color:m.color, soft:m.soft,
+        live: dr0.run === 'running',
+        hasPr,
+        prIcon: prMerged ? '✔' : '⊙',
+        prTitle: hasPr ? ('PR #'+dr0.pr.num+' · '+dr0.pr.title) : '',
+        prMeta: prMerged ? 'merged into main · Closes #'+dr0.num : 'open · targets main · Closes #'+dr0.num,
+        prStyle: 'display:flex;align-items:center;gap:11px;padding:12px;border:1px solid '+(prMerged?'var(--accent)':'var(--border2)')+';border-radius:11px;text-decoration:none;background:'+(prMerged?'var(--accent-soft)':'var(--bg)'),
+        gated: !hasPr,
+        gateText: dr0.run==='running' ? 'Agent is running in an isolated worktree. A PR will appear when it pushes and opens one.' : (dr0.run==='ready' ? 'All upstream PRs merged — this ticket is eligible. Worktree is created just-in-time at spawn.' : 'Blocked: waiting for upstream PRs ('+dr0.deps.join(', ')+') to merge into main.'),
+        runs,
+        hasLog: !!logs[dr0.run],
+        log: logs[dr0.run] || '',
+        canFollow: dr0.run === 'review' || dr0.run === 'failed',
+      };
+    }
+
+    // stats
+    const stat = { merged:s.tickets.filter(t=>t.run==='merged').length, running:s.tickets.filter(t=>t.run==='running').length, ready:s.tickets.filter(t=>t.run==='ready').length };
+
+    // approve steps
+    const stepDefs = [
+      { title:'Validate graph', sub:'acyclic · no missing refs · no orphans' },
+      { title:'Create or reuse arbor label', sub:'filterable across GitHub' },
+      { title:'Create milestone', sub:'arbor: passwordless-auth (a3f1)' },
+      { title:'Create '+s.tickets.length+' GitHub Issues', sub:'persist external IDs & URLs' },
+    ];
+    const approveSteps = stepDefs.map((d,i) => {
+      let st = 'idle';
+      if (s.approveRunning) { if (i < s.approveStep) st='done'; else if (i===s.approveStep) st='active'; }
+      return { ...d, icon: st==='done'?'✓':(st==='active'?'':(i+1)),
+        iconStyle: 'width:24px;height:24px;border-radius:99px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;'+
+          (st==='done'?'background:var(--accent);color:#fff':(st==='active'?'border:2px solid var(--accent);border-top-color:transparent;animation:ar-spin .7s linear infinite':'border:1.5px solid var(--border2);color:var(--muted)')) };
+    });
+    const confirmLabel = s.approveRunning ? 'Creating…' : 'Approve & create';
+    const confirmStyle = 'padding:10px 18px;border-radius:9px;font-size:13.5px;font-weight:600;color:#fff;background:var(--accent);opacity:'+(s.approveRunning?'.7':'1')+';display:flex;align-items:center;gap:8px';
+    const startNowBox = 'width:20px;height:20px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;border:1.5px solid '+(s.startNow?'var(--accent)':'var(--border2)')+';background:'+(s.startNow?'var(--accent)':'transparent');
+
+    // settings concurrency
+    const concurrencyOpts = [1,2,3,4].map(n => ({ label:String(n), onClick: () => this.setState({ concurrency:n }),
+      style:'flex:1;padding:9px;border-radius:9px;font-size:13.5px;font-weight:600;border:1px solid '+(s.concurrency===n?'var(--accent)':'var(--border)')+';color:'+(s.concurrency===n?'var(--accent)':'var(--ink2)')+';background:'+(s.concurrency===n?'var(--accent-soft)':'var(--bg)') }));
+
+    // live agent terminal session
+    const sessTicket = s.tickets.find(t => t.id === s.sessionTicketId);
+    const termMap = {
+      sys:   { p:'●',     pc:'rgba(255,255,255,.30)', tc:'rgba(255,255,255,.46)' },
+      cmd:   { p:'$',     pc:'#62C554',               tc:'#cfe8c4' },
+      out:   { p:'',      pc:'',                       tc:'rgba(232,226,214,.80)' },
+      ok:    { p:'',      pc:'',                       tc:'#86d986' },
+      agent: { p:'◆',     pc:'#86b6f2',               tc:'#dce8fb' },
+      user:  { p:'you ›', pc:'#f4be50',               tc:'#f6d488' },
+    };
+    const sessionLines = s.sessionLines.map(l => {
+      const m = termMap[l.k] || termMap.out;
+      const indent = (l.k === 'out' || l.k === 'ok');
+      return { t:l.t, prefix:m.p,
+        prefixStyle:'margin-right:8px;color:'+m.pc+(l.k==='user'?';font-weight:700':''),
+        style:'white-space:pre-wrap;color:'+m.tc+';'+(indent?'padding-left:18px;':'')+(l.k==='user'?'margin:9px 0 3px;font-weight:600':'') };
+    });
+
+    return {
+      rootStyle, repoName: repoFull, projectTitle: s.activeProjectName,
+      repoChip, repoMenu, projectList, repoMenuOpen: s.repoMenuOpen,
+      onToggleRepoMenu: () => this.setState({ repoMenuOpen: !s.repoMenuOpen }),
+      onConnectRepo: () => this.setState({ repoMenuOpen: false, view: 'connect', connectStep: 0, authDone: false, authVerifying: false }),
+      onNewProject: () => this.setState({ view: 'plan' }),
+      themeIcon: s.dark ? '☀' : '☾', onToggleDark: () => this.setState({ dark: !s.dark }),
+      onOpenSettings: () => this.setState({ settingsOpen:true }),
+      isConnect: s.view==='connect', isPlan: s.view==='plan', isRun: isRunView,
+
+      // connect
+      cs0: cstep===0, cs1: cstep===1, cs2: cstep===2,
+      connectChecklist, authPending, authDone:s.authDone,
+      authBtnLabel: s.authVerifying ? 'Verifying API access…' : 'Authorize with GitHub',
+      authBtnIcon: s.authVerifying ? '◴' : '⎔',
+      onAuthorize: () => { if (s.authVerifying) return; this.setState({ authVerifying:true }); setTimeout(()=>this.setState({ authVerifying:false, authDone:true }), 1300); },
+      onConnectNext: () => { if (connectNextDisabled) return; if (cstep < 2) this.setState({ connectStep: cstep+1 }); else this.setState({ view:'plan' }); },
+      connectNextLabel, connectNextStyle,
+
+      // plan
+      ticketCount: s.tickets.length, messages, chatInput:s.chatInput,
+      onChatInput: (e)=>this.setState({ chatInput:e.target.value }),
+      onSendChat: () => { const v=s.chatInput.trim(); if(!v) return; this.setState({ messages:[...s.messages, {role:'user',text:v}, {role:'assistant',text:'Updated the draft and re-validated the graph — no cycles or orphans. Captured as a new version.'}], chatInput:'', currentVersion:Math.min(s.maxVersion+1,9), maxVersion:Math.min(s.maxVersion+1,9) }); },
+      versionChips, currentVersion:s.currentVersion,
+      nodes:lay.nodes, edges:lay.edges, canvasW:lay.canvasW, canvasH:lay.canvasH,
+      hasInspector: !!insp, insp: insp || { num:'', title:'', problem:'', ac:[], deps:[], addable:[], noDeps:true, hasAddable:false },
+      onInspTitle: (e)=>{ if(sel) this.mutateTicket(sel.id, t=>{ t.title=e.target.value; }); },
+      onCloseInspector: ()=>this.setState({ selectedId:null }),
+      onDeleteTicket: ()=>{ if(!sel) return; this.setState(st=>({ tickets: st.tickets.filter(t=>t.id!==sel.id).map(t=>({...t, deps:t.deps.filter(d=>d!==sel.id)})), selectedId:null })); },
+      onSplit: ()=>{}, onMerge: ()=>{},
+      onOpenApprove: ()=>this.setState({ approveOpen:true, approveRunning:false, approveStep:-1 }),
+
+      // run
+      stat, concurrency:s.concurrency,
+      refreshLabel: s.refreshing ? 'Polling…' : 'Refresh',
+      refreshIconStyle: 'display:inline-block;'+(s.refreshing?'animation:ar-spin .7s linear infinite':''),
+      onRefresh: ()=>{ if(s.refreshing) return; this.setState({refreshing:true}); setTimeout(()=>this.setState({refreshing:false}),900); },
+      hasDrawer: !!dr, dr: dr || { num:'',title:'',branch:'',statusLabel:'',color:'',soft:'',live:false,hasPr:false,gated:false,gateText:'',runs:[],hasLog:false,log:'',canFollow:false,prStyle:'',prIcon:'',prTitle:'',prMeta:'' },
+      onCloseDrawer: ()=>this.setState({ drawerId:null }),
+      followInput:s.followInput, onFollowInput:(e)=>this.setState({followInput:e.target.value}),
+      onSendFollow: ()=>{ if(!s.followInput.trim()) return; this.setState({ followInput:'' }); },
+
+      // pan + zoom canvas
+      canvasViewportStyle: 'flex:1;position:relative;min-width:0;overflow:hidden;touch-action:none;cursor:grab;background-image:radial-gradient(var(--dot) 1px,transparent 1px);background-size:'+(22*s.zoom)+'px '+(22*s.zoom)+'px;background-position:'+s.panX+'px '+s.panY+'px',
+      canvasLayerStyle: 'position:relative;width:'+lay.canvasW+'px;height:'+lay.canvasH+'px;transform:translate('+s.panX+'px,'+s.panY+'px) scale('+s.zoom+');transform-origin:0 0',
+      onCanvasWheel: (e)=>{ if(e.cancelable) e.preventDefault(); const r=e.currentTarget.getBoundingClientRect(); const mx=e.clientX-r.left, my=e.clientY-r.top; const f=Math.exp(-e.deltaY*0.0015); this.setState(st=>{ const z=Math.min(2.2,Math.max(0.4,st.zoom*f)); const k=z/st.zoom; return { zoom:z, panX:mx-k*(mx-st.panX), panY:my-k*(my-st.panY) }; }); },
+      onCanvasDown: (e)=>{ if(e.button!==0) return; if(e.target.closest('button, a, input, textarea, [data-nopan]')) return; this._panning=true; this._ps={x:e.clientX,y:e.clientY,px:s.panX,py:s.panY}; try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){} },
+      onCanvasMove: (e)=>{ if(!this._panning) return; this.setState({ panX:this._ps.px+(e.clientX-this._ps.x), panY:this._ps.py+(e.clientY-this._ps.y) }); },
+      onCanvasUp: ()=>{ this._panning=false; },
+      onCanvasReset: ()=>this.setState({ panX:0, panY:0, zoom:1 }),
+
+      // live agent session
+      sessionOpen:s.sessionOpen, sessionLines, sessionInput:s.sessionInput,
+      sessionBranch: sessTicket ? sessTicket.branch : '',
+      sessionNum: sessTicket ? sessTicket.num : '',
+      termRef: this.setTermEl,
+      onConnectSession: () => this.openSession(s.drawerId),
+      onCloseSession: () => this.closeSession(),
+      onSessionInput: (e)=>this.setState({ sessionInput:e.target.value }),
+      onSendSession: () => this.sendSessionPrompt(),
+      onSessionKey: (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); this.sendSessionPrompt(); } },
+
+      // approve
+      approveOpen:s.approveOpen, approveSteps,
+      startNow:s.startNow, startNowBox, startNowMark: s.startNow ? '✓' : '',
+      onToggleStartNow: ()=>this.setState({ startNow: !s.startNow }),
+      confirmLabel, confirmStyle,
+      onConfirmApprove: ()=>{ if(s.approveRunning) return; this.setState({ approveRunning:true, approveStep:0 }); this.runApprove(); },
+      onCloseApprove: ()=>{ if(s.approveRunning) return; this.setState({ approveOpen:false }); },
+      onBackdropApprove: ()=>{ if(!s.approveRunning) this.setState({ approveOpen:false }); },
+      stop: (e)=>{ e.stopPropagation(); },
+
+      // settings
+      settingsOpen:s.settingsOpen, agentCmd:s.agentCmd,
+      onAgentCmd:(e)=>this.setState({ agentCmd:e.target.value }),
+      onCloseSettings: ()=>this.setState({ settingsOpen:false }),
+      concurrencyOpts,
+    };
+  }
+
+  runDot(s) {
+    const c = { succeeded:'oklch(0.5 0.09 150)', running:'oklch(0.54 0.1 245)', queued:'var(--muted)', blocked:'oklch(0.62 0.1 65)', failed:'oklch(0.57 0.14 28)' }[s] || 'var(--muted)';
+    return 'width:8px;height:8px;border-radius:99px;flex:none;background:'+c+(s==='running'?';animation:ar-pulse 1.3s infinite':'');
+  }
+
+  mutateTicket(id, fn) {
+    this.setState(st => ({ tickets: st.tickets.map(t => { if (t.id !== id) return t; const c = { ...t, ac:[...t.ac], deps:[...t.deps] }; fn(c); return c; }) }));
+  }
+
+  runApprove() {
+    const tick = (i) => {
+      if (i >= 4) { setTimeout(() => this.setState(st => ({
+        approveOpen:false, approveRunning:false, view:'run', selectedId:null,
+        repos: st.repos.map(r => ({ ...r, projects: r.projects.map(p => p.name === st.activeProjectName ? { ...p, status:'running' } : p) })),
+      })), 500); return; }
+      this.setState({ approveStep: i });
+      setTimeout(() => tick(i+1), 850);
+    };
+    tick(0);
+  }
+}
+</script>
+</body>
+</html>
