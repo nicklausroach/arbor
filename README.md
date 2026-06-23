@@ -1,13 +1,4 @@
-# Arbor
-
-<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" style="color: oklch(0.52 0.08 150)">
-  <line x1="12" y1="22" x2="12" y2="13"></line>
-  <line x1="12" y1="15" x2="6" y2="9"></line>
-  <line x1="12" y1="13" x2="18" y2="7"></line>
-  <circle cx="6" cy="8" r="2.4" fill="currentColor" stroke="none"></circle>
-  <circle cx="18" cy="6" r="2.4" fill="currentColor" stroke="none"></circle>
-  <circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"></circle>
-</svg>
+# <img src="logo.svg" alt="Arbor" width="48" height="48" style="display: inline-block; vertical-align: middle; margin-right: 12px;" /> Arbor
 
 **Arbor** is a dependency-aware coding tool that helps teams plan and execute complex software projects. It turns high-level objectives into structured, dependency-aware task graphs and coordinates agent-based execution with full traceability.
 
