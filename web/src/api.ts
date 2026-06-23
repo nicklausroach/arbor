@@ -104,6 +104,9 @@ export interface ApproveResult {
   tickets: Ticket[];
 }
 
+export type ApproveStep = 'label' | 'milestone' | 'issues';
+export type ApproveStepStatus = 'running' | 'done' | 'error';
+
 export interface Run {
   id: string;
   ticket_id: string;
@@ -210,16 +213,40 @@ export const api = {
 
   approveProject: async (
     projectId: string,
-    startNow: boolean
+    startNow: boolean,
+    onStep?: (step: ApproveStep, status: ApproveStepStatus) => void
   ): Promise<{ ok: true; result: ApproveResult } | { ok: false; error: string; result?: ApproveResult }> => {
     const res = await fetch(`${BASE}/projects/${projectId}/approve`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ startNow }),
     });
-    const body = await res.json();
-    if (!res.ok) return { ok: false, error: body.error ?? `Request failed: ${res.status}`, result: body };
-    return { ok: true, result: body };
+    // Preconditions failing reply with a plain JSON error before any stream begins.
+    if (!res.ok || !res.body) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      return { ok: false, error: body.error ?? `Request failed: ${res.status}`, result: body };
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let outcome: { ok: true; result: ApproveResult } | { ok: false; error: string; result?: ApproveResult } | undefined;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split('\n\n');
+      buffer = chunks.pop() ?? '';
+      for (const chunk of chunks) {
+        const line = chunk.split('\n').find((l) => l.startsWith('data: '));
+        if (!line) continue;
+        const event = JSON.parse(line.slice(6));
+        if (event.type === 'step') onStep?.(event.step, event.status);
+        else if (event.type === 'done') outcome = { ok: true, result: event.result };
+        else if (event.type === 'error') outcome = { ok: false, error: event.error, result: event.result };
+      }
+    }
+    return outcome ?? { ok: false, error: 'Approval stream ended unexpectedly' };
   },
 
   getRunState: (projectId: string) => request<RunState>(`/projects/${projectId}/run-state`),

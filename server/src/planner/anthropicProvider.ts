@@ -1,11 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { grep, listDir, readFile, repoTree } from "./repoTools.js";
+import { reviewPlan } from "./planReviewer.js";
 import type { PlannerInput, PlannerProvider } from "./llm.js";
 import type { DraftTicket, PlannerResult, ProjectSummary } from "./types.js";
 
 const MODEL = "claude-sonnet-4-5";
 const MAX_TURNS = 14;
 const NUDGE_AFTER_TURN = 4;
+// A proposed plan is reviewed at most this many times; a critique sends the planner back to
+// revise once, then the revised plan is accepted (subject to structural validation upstream).
+const MAX_REVIEW_ROUNDS = 1;
 
 const PROPOSE_GRAPH_TOOL: Anthropic.Tool = {
   name: "propose_graph",
@@ -210,6 +214,7 @@ export class AnthropicPlannerProvider implements PlannerProvider {
 
     const toolCalls: { tag: string; text: string }[] = [];
     let assistantMessage = "";
+    let reviewRounds = 0;
     const onEvent = input.onEvent ?? (() => {});
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
@@ -235,6 +240,48 @@ export class AnthropicPlannerProvider implements PlannerProvider {
       if (proposeBlock) {
         const parsed = parseProposeGraphInput(proposeBlock.input);
         if (!parsed.ok) throw new MalformedPlannerOutputError(parsed.errors);
+
+        if (reviewRounds < MAX_REVIEW_ROUNDS) {
+          reviewRounds++;
+          const review = await reviewPlan({
+            client,
+            objective: input.objective,
+            userMessage: input.userMessage,
+            summary: parsed.summary,
+            tickets: parsed.tickets,
+            onEvent,
+          });
+          if (!review.approved) {
+            // The propose_graph call must be answered before the planner can revise. Feed the
+            // critique back as its tool result; run any sibling tool calls normally so every
+            // tool_use block in the turn is satisfied.
+            messages.push({ role: "assistant", content: response.content });
+            const toolResults: Anthropic.ToolResultBlockParam[] = [];
+            for (const block of response.content) {
+              if (block.type !== "tool_use") continue;
+              if (block.id === proposeBlock.id) {
+                toolResults.push({
+                  type: "tool_result",
+                  tool_use_id: block.id,
+                  content: `A plan reviewer critiqued your proposed plan. Revise it to address this feedback, then call propose_graph again with the improved plan:\n\n${review.critique}`,
+                });
+                continue;
+              }
+              onEvent({ type: "tool_call", tag: block.name, text: JSON.stringify(block.input) });
+              let result: string;
+              try {
+                result = runTool(input.repoPath, block.name, block.input as Record<string, unknown>);
+              } catch (err) {
+                result = `Error: ${(err as Error).message}`;
+              }
+              toolCalls.push({ tag: block.name, text: JSON.stringify(block.input) });
+              toolResults.push({ type: "tool_result", tool_use_id: block.id, content: result });
+            }
+            messages.push({ role: "user", content: toolResults });
+            continue;
+          }
+        }
+
         return {
           summary: parsed.summary,
           tickets: parsed.tickets,

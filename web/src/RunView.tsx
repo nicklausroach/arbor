@@ -23,6 +23,7 @@ const STATUS_META: Record<string, { label: string; color: string; soft: string }
 export function RunView({ projectId }: Props) {
   const [state, setState] = useState<RunState | null>(null);
   const [drawerKey, setDrawerKey] = useState<string | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [session, setSession] = useState<{ runId: string; ticketNumber: number; branch: string } | null>(null);
   const pollRef = useRef<number | null>(null);
@@ -99,6 +100,26 @@ export function RunView({ projectId }: Props) {
           </span>
         </div>
         <button
+          onClick={() => {
+            setDrawerKey(null);
+            setSummaryOpen((open) => !open);
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '8px 14px',
+            borderRadius: 9,
+            background: summaryOpen ? 'var(--ink)' : 'var(--panel2)',
+            border: '1px solid var(--border)',
+            color: summaryOpen ? 'var(--bg)' : 'var(--ink)',
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          ⓘ Summary
+        </button>
+        <button
           onClick={handleRefresh}
           disabled={refreshing}
           style={{
@@ -124,14 +145,26 @@ export function RunView({ projectId }: Props) {
           width={layout.width}
           height={layout.height}
           overlay={
-            drawerTicket && (
-              <RunDrawer
-                ticket={drawerTicket}
-                onClose={() => setDrawerKey(null)}
-                onConnectSession={(runId) =>
-                  setSession({ runId, ticketNumber: drawerTicket.number, branch: drawerTicket.branch_name ?? '' })
-                }
+            summaryOpen ? (
+              <ProjectSummaryDrawer
+                project={state.project}
+                tickets={tickets}
+                onClose={() => setSummaryOpen(false)}
+                onSelectTicket={(stableKey) => {
+                  setSummaryOpen(false);
+                  setDrawerKey(stableKey);
+                }}
               />
+            ) : (
+              drawerTicket && (
+                <RunDrawer
+                  ticket={drawerTicket}
+                  onClose={() => setDrawerKey(null)}
+                  onConnectSession={(runId) =>
+                    setSession({ runId, ticketNumber: drawerTicket.number, branch: drawerTicket.branch_name ?? '' })
+                  }
+                />
+              )
             )
           }
         >
@@ -159,7 +192,10 @@ export function RunView({ projectId }: Props) {
             return (
               <button
                 key={n.id}
-                onClick={() => setDrawerKey(n.id)}
+                onClick={() => {
+                  setSummaryOpen(false);
+                  setDrawerKey(n.id);
+                }}
                 style={{
                   position: 'absolute',
                   left: n.x,
@@ -445,6 +481,165 @@ function RunDrawer({
       </div>
     </div>
   );
+}
+
+// Ticket statuses that can occur during execution, in DAG-progression order. 'draft' is
+// excluded — tickets are materialized as blocked/ready at approval, never draft in RunView.
+const PROGRESS_STATUSES = ['blocked', 'ready', 'running', 'review', 'merged', 'failed'] as const;
+
+function ProjectSummaryDrawer({
+  project,
+  tickets,
+  onClose,
+  onSelectTicket,
+}: {
+  project: RunState['project'];
+  tickets: TicketWithRuns[];
+  onClose: () => void;
+  onSelectTicket: (stableKey: string) => void;
+}) {
+  const total = tickets.length;
+  const counts = Object.fromEntries(PROGRESS_STATUSES.map((s) => [s, 0])) as Record<string, number>;
+  for (const t of tickets) counts[t.status] = (counts[t.status] ?? 0) + 1;
+  const merged = counts.merged ?? 0;
+  const pct = total === 0 ? 0 : Math.round((merged / total) * 100);
+  const failed = tickets.filter((t) => t.status === 'failed');
+
+  return (
+    <div
+      data-nopan
+      style={{
+        position: 'absolute',
+        top: 14,
+        right: 14,
+        bottom: 14,
+        width: 392,
+        background: 'var(--panel)',
+        border: '1px solid var(--border)',
+        borderRadius: 14,
+        boxShadow: '0 16px 44px -16px var(--shadow)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ padding: '15px 16px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
+            Summary
+          </span>
+          <div style={{ flex: 1 }} />
+          <StatusBadge status={project.status} />
+          <button onClick={onClose} style={{ color: 'var(--muted)', fontSize: 18, lineHeight: 1, padding: 2 }}>
+            ×
+          </button>
+        </div>
+        <div className="serif" style={{ fontSize: 19, color: 'var(--ink)', marginTop: 8, lineHeight: 1.2 }}>
+          {project.title}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+        <Label>Objective</Label>
+        <div style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink)', marginBottom: 18, whiteSpace: 'pre-wrap' }}>
+          {project.objective}
+        </div>
+
+        <Label>Progress</Label>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+          <span className="serif" style={{ fontSize: 24, color: 'var(--ink)', lineHeight: 1 }}>
+            {pct}%
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+            {merged} of {total} tickets merged
+          </span>
+        </div>
+        <div style={{ height: 7, borderRadius: 99, background: 'var(--panel2)', overflow: 'hidden', marginBottom: 12 }}>
+          <div style={{ width: `${pct}%`, height: '100%', background: STATUS_META.merged.color, borderRadius: 99 }} />
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginBottom: 18 }}>
+          {PROGRESS_STATUSES.filter((s) => counts[s] > 0).map((s) => {
+            const meta = STATUS_META[s];
+            return (
+              <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink2)' }}>
+                <span style={{ width: 7, height: 7, borderRadius: 99, background: meta.color }} />
+                <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{counts[s]}</b>
+                {meta.label.toLowerCase()}
+              </span>
+            );
+          })}
+        </div>
+
+        {failed.length > 0 && (
+          <>
+            <Label>Needs attention</Label>
+            <div style={{ marginBottom: 18 }}>
+              {failed.map((t) => (
+                <button
+                  key={t.stable_key}
+                  onClick={() => onSelectTicket(t.stable_key)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    textAlign: 'left',
+                    padding: '9px 11px',
+                    border: `1px solid ${STATUS_META.failed.color}`,
+                    background: STATUS_META.failed.soft,
+                    borderRadius: 10,
+                    marginBottom: 7,
+                  }}
+                >
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>#{t.number}</span>
+                  <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>{t.title}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: STATUS_META.failed.color }}>Failed ↗</span>
+                </button>
+              ))}
+              <div style={{ fontSize: 11.5, color: 'var(--ink2)', lineHeight: 1.5, marginTop: 4 }}>
+                Failed tickets won't retry automatically and block their downstream work.
+              </div>
+            </div>
+          </>
+        )}
+
+        <Label>Details</Label>
+        <Detail label="Base branch" value={project.base_branch ?? '—'} mono />
+        <Detail label="Created" value={formatCreated(project.created_at)} />
+        {project.milestone_url ? (
+          <a
+            href={project.milestone_url}
+            target="_blank"
+            rel="noreferrer"
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '8px 0', color: 'var(--ink)' }}
+          >
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>Milestone</span>
+            <span className="mono" style={{ fontSize: 12, color: 'var(--accent)' }}>#{project.milestone_number} ↗</span>
+          </a>
+        ) : (
+          <Detail label="Milestone" value="—" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Detail({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+      <span style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</span>
+      <span className={mono ? 'mono' : undefined} style={{ fontSize: 12, color: 'var(--ink)', textAlign: 'right' }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function formatCreated(iso: string): string {
+  const then = new Date(iso);
+  const days = Math.floor((Date.now() - then.getTime()) / 86_400_000);
+  const rel = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+  return `${then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${rel}`;
 }
 
 function runDotColor(status: string): string {

@@ -69,9 +69,25 @@ approveRouter.post("/:id/approve", async (req, res) => {
   const { startNow } = req.body as { startNow?: boolean };
   const ordered = topoOrder(validation.tickets);
 
-  try {
-    await ensureLabel(octokit, repo.owner, repo.name, project.label_name);
+  // All preconditions passed — switch to a Server-Sent Events stream so the client can show
+  // per-step progress (label → milestone → issues) instead of one opaque round-trip.
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+  const send = (event: Record<string, unknown>) => res.write(`data: ${JSON.stringify(event)}\n\n`);
 
+  // The step currently in flight, so a thrown error can mark the right row as failed.
+  let currentStep: "label" | "milestone" | "issues" = "label";
+
+  try {
+    send({ type: "step", step: "label", status: "running" });
+    await ensureLabel(octokit, repo.owner, repo.name, project.label_name);
+    send({ type: "step", step: "label", status: "done" });
+
+    currentStep = "milestone";
+    send({ type: "step", step: "milestone", status: "running" });
     let milestoneNumber = project.milestone_number;
     let milestoneUrl = project.milestone_url;
     if (!milestoneNumber) {
@@ -85,7 +101,10 @@ approveRouter.post("/:id/approve", async (req, res) => {
       milestoneUrl = milestone.url;
       setProjectMilestone(project.id, milestoneNumber, milestoneUrl);
     }
+    send({ type: "step", step: "milestone", status: "done" });
 
+    currentStep = "issues";
+    send({ type: "step", step: "issues", status: "running" });
     const projectSlug = slugify(project.title);
     const rootIds = new Set(validation.tickets.filter((t) => t.dependsOn.length === 0).map((t) => t.id));
     ensureTicketRows(
@@ -118,16 +137,20 @@ approveRouter.post("/:id/approve", async (req, res) => {
       setTicketGithubIssue(row.id, issue.number, issue.url);
       createdIssues.set(ticket.id, { ticket, number: issue.number, url: issue.url });
     }
+    send({ type: "step", step: "issues", status: "done" });
 
     setProjectStatus(project.id, startNow ? "running" : "approved");
-    res.json({ project: getProject(project.id), tickets: listTickets(project.id) });
+    send({ type: "done", result: { project: getProject(project.id), tickets: listTickets(project.id) } });
   } catch (err) {
     setProjectStatus(project.id, "approval_failed");
-    res.status(500).json({
+    send({ type: "step", step: currentStep, status: "error" });
+    send({
+      type: "error",
       error: `Approval failed: ${(err as Error).message}. Already-created issues are preserved — retry will skip them.`,
-      project: getProject(project.id),
-      tickets: listTickets(project.id),
+      result: { project: getProject(project.id), tickets: listTickets(project.id) },
     });
+  } finally {
+    res.end();
   }
 });
 

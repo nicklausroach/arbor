@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, type ApproveResult } from './api';
+import { api, type ApproveResult, type ApproveStep, type ApproveStepStatus } from './api';
 
 interface Props {
   projectId: string;
@@ -8,15 +8,66 @@ interface Props {
   onApproved: (result: ApproveResult) => void;
 }
 
+type StepState = 'pending' | ApproveStepStatus;
+
+function StepIcon({ state }: { state: StepState }) {
+  if (state === 'running') {
+    return (
+      <div style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+        <span
+          style={{
+            width: 16,
+            height: 16,
+            borderRadius: 99,
+            border: '2px solid var(--border2)',
+            borderTopColor: 'var(--accent)',
+            animation: 'ar-spin 0.7s linear infinite',
+            display: 'inline-block',
+          }}
+        />
+      </div>
+    );
+  }
+  const bg = state === 'done' ? 'var(--accent-soft)' : state === 'error' ? 'oklch(0.9 0.05 28)' : 'var(--panel2)';
+  const color = state === 'done' ? 'var(--accent)' : state === 'error' ? 'oklch(0.57 0.14 28)' : 'var(--muted)';
+  const glyph = state === 'done' ? '✓' : state === 'error' ? '✕' : '·';
+  return (
+    <div
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: 99,
+        background: bg,
+        color,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flex: 'none',
+        fontSize: 13,
+      }}
+    >
+      {glyph}
+    </div>
+  );
+}
+
 export function ApproveModal({ projectId, currentVersion, onClose, onApproved }: Props) {
   const [startNow, setStartNow] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stepState, setStepState] = useState<Record<ApproveStep, StepState>>({
+    label: 'pending',
+    milestone: 'pending',
+    issues: 'pending',
+  });
 
   async function handleConfirm() {
     setBusy(true);
     setError(null);
-    const outcome = await api.approveProject(projectId, startNow);
+    setStepState({ label: 'pending', milestone: 'pending', issues: 'pending' });
+    const outcome = await api.approveProject(projectId, startNow, (step, status) => {
+      setStepState((prev) => ({ ...prev, [step]: status }));
+    });
     setBusy(false);
     if (outcome.ok) {
       onApproved(outcome.result);
@@ -25,10 +76,10 @@ export function ApproveModal({ projectId, currentVersion, onClose, onApproved }:
     }
   }
 
-  const steps = [
-    { title: 'Create / reuse "arbor" label', sub: 'Filters all Arbor-created work in GitHub' },
-    { title: 'Create milestone', sub: 'One per project, groups every ticket issue' },
-    { title: 'Create a GitHub issue per ticket', sub: 'Durable record before any agent runs' },
+  const steps: { id: ApproveStep; title: string; sub: string }[] = [
+    { id: 'label', title: 'Create / reuse "arbor" label', sub: 'Filters all Arbor-created work in GitHub' },
+    { id: 'milestone', title: 'Create milestone', sub: 'One per project, groups every ticket issue' },
+    { id: 'issues', title: 'Create a GitHub issue per ticket', sub: 'Durable record before any agent runs' },
   ];
 
   return (
@@ -67,23 +118,8 @@ export function ApproveModal({ projectId, currentVersion, onClose, onApproved }:
         </div>
         <div style={{ padding: '0 24px' }}>
           {steps.map((s) => (
-            <div key={s.title} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderTop: '1px solid var(--border)' }}>
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 99,
-                  background: 'var(--accent-soft)',
-                  color: 'var(--accent)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flex: 'none',
-                  fontSize: 13,
-                }}
-              >
-                ✓
-              </div>
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderTop: '1px solid var(--border)' }}>
+              <StepIcon state={stepState[s.id]} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{s.title}</div>
                 <div style={{ fontSize: 12, color: 'var(--muted)' }}>{s.sub}</div>
