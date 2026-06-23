@@ -58,12 +58,11 @@ export function PlanView({ projectId, onApproved }: Props) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div
         style={{
-          height: 58,
           flex: 'none',
           display: 'flex',
           alignItems: 'center',
           gap: 16,
-          padding: '0 22px',
+          padding: '18px 22px',
           borderBottom: '1px solid var(--border)',
           background: 'var(--panel)',
         }}
@@ -246,65 +245,65 @@ export function PlanView({ projectId, onApproved }: Props) {
             )
           }
         >
-            <svg width={layout.width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
-              {layout.edges.map((e) => (
-                <path key={`${e.from}-${e.to}`} d={e.d} fill="none" stroke="var(--border2)" strokeWidth={1.5} strokeDasharray="5 5" />
-              ))}
-            </svg>
-            {layout.nodes.map((n) => {
-              const t = tickets.find((x) => x.id === n.id)!;
-              const sel = selectedId === n.id;
-              return (
-                <button
-                  key={n.id}
-                  onClick={() => setSelectedId(n.id)}
+          <svg width={layout.width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
+            {layout.edges.map((e) => (
+              <path key={`${e.from}-${e.to}`} d={e.d} fill="none" stroke="var(--border2)" strokeWidth={1.5} strokeDasharray="5 5" />
+            ))}
+          </svg>
+          {layout.nodes.map((n) => {
+            const t = tickets.find((x) => x.id === n.id)!;
+            const sel = selectedId === n.id;
+            return (
+              <button
+                key={n.id}
+                onClick={() => setSelectedId(n.id)}
+                style={{
+                  position: 'absolute',
+                  left: n.x,
+                  top: n.y,
+                  width: NODE_WIDTH,
+                  height: NODE_HEIGHT,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  background: 'var(--panel)',
+                  borderTop: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                  borderRight: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                  borderBottom: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                  borderLeft: '3px solid var(--accent)',
+                  borderRadius: 11,
+                  padding: '12px 13px 10px',
+                  boxShadow: sel ? '0 8px 24px -6px var(--shadow)' : '0 1px 2px var(--shadow)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6, flex: 'none' }}>
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
+                    #{t.id}
+                  </span>
+                </div>
+                <div
                   style={{
-                    position: 'absolute',
-                    left: n.x,
-                    top: n.y,
-                    width: NODE_WIDTH,
-                    height: NODE_HEIGHT,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    lineHeight: 1.28,
+                    color: 'var(--ink)',
+                    display: '-webkit-box',
+                    WebkitBoxOrient: 'vertical',
+                    WebkitLineClamp: 2,
                     overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    background: 'var(--panel)',
-                    borderTop: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRight: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
-                    borderBottom: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
-                    borderLeft: '3px solid var(--accent)',
-                    borderRadius: 11,
-                    padding: '12px 13px 10px',
-                    boxShadow: sel ? '0 8px 24px -6px var(--shadow)' : '0 1px 2px var(--shadow)',
+                    minHeight: 0,
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6, flex: 'none' }}>
-                    <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
-                      #{t.id}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      lineHeight: 1.28,
-                      color: 'var(--ink)',
-                      display: '-webkit-box',
-                      WebkitBoxOrient: 'vertical',
-                      WebkitLineClamp: 2,
-                      overflow: 'hidden',
-                      minHeight: 0,
-                    }}
-                  >
-                    {t.title}
-                  </div>
-                  <div className="mono" style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 'auto', flex: 'none' }}>
-                    {t.dependsOn.length ? `${t.dependsOn.length} upstream` : 'root ticket'}
-                  </div>
-                </button>
-              );
-            })}
+                  {t.title}
+                </div>
+                <div className="mono" style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 'auto', flex: 'none' }}>
+                  {t.dependsOn.length ? `${t.dependsOn.length} upstream` : 'root ticket'}
+                </div>
+              </button>
+            );
+          })}
         </GraphViewport>
       </div>
       {approveOpen && (

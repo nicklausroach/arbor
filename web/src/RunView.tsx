@@ -66,12 +66,11 @@ export function RunView({ projectId }: Props) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div
         style={{
-          height: 58,
           flex: 'none',
           display: 'flex',
           alignItems: 'center',
           gap: 16,
-          padding: '0 22px',
+          padding: '18px 22px',
           borderBottom: '1px solid var(--border)',
           background: 'var(--panel)',
         }}
@@ -136,106 +135,106 @@ export function RunView({ projectId }: Props) {
             )
           }
         >
-            <svg width={layout.width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
-              {layout.edges.map((e) => {
-                const upMerged = byKey.get(e.from)?.status === 'merged';
-                return (
-                  <path
-                    key={`${e.from}-${e.to}`}
-                    d={e.d}
-                    fill="none"
-                    stroke={upMerged ? 'var(--accent)' : 'var(--border2)'}
-                    strokeWidth={upMerged ? 2 : 1.5}
-                    strokeDasharray={upMerged ? '0' : '5 5'}
-                  />
-                );
-              })}
-            </svg>
-            {layout.nodes.map((n) => {
-              const t = byKey.get(n.id)!;
-              const meta = STATUS_META[t.status] ?? STATUS_META.draft;
-              const sel = drawerKey === n.id;
-              const pulsing = t.status === 'running';
-              const worktreeName = formatWorktreeName(t.branch_name);
+          <svg width={layout.width} height={layout.height} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
+            {layout.edges.map((e) => {
+              const upMerged = byKey.get(e.from)?.status === 'merged';
               return (
-                <button
-                  key={n.id}
-                  onClick={() => setDrawerKey(n.id)}
-                  style={{
-                    position: 'absolute',
-                    left: n.x,
-                    top: n.y,
-                    width: NODE_WIDTH,
-                    height: NODE_HEIGHT,
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    background: 'var(--panel)',
-                    borderTop: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRight: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
-                    borderBottom: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
-                    borderLeft: `3px solid ${meta.color}`,
-                    borderRadius: 11,
-                    padding: '12px 13px 10px',
-                    boxShadow: sel ? '0 8px 24px -6px var(--shadow)' : '0 1px 2px var(--shadow)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6, flex: 'none' }}>
-                    <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
-                      #{t.number}
-                    </span>
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        padding: '2px 8px',
-                        borderRadius: 99,
-                        color: meta.color,
-                        background: meta.soft,
-                      }}
-                    >
-                      <span style={{ width: 6, height: 6, borderRadius: 99, background: meta.color, animation: pulsing ? 'ar-pulse 1.3s infinite' : 'none' }} />
-                      {meta.label}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      lineHeight: 1.28,
-                      color: 'var(--ink)',
-                      display: '-webkit-box',
-                      WebkitBoxOrient: 'vertical',
-                      WebkitLineClamp: 2,
-                      overflow: 'hidden',
-                      minHeight: 0,
-                    }}
-                  >
-                    {t.title}
-                  </div>
-                  <div
-                    className="mono"
-                    title={worktreeName}
-                    style={{
-                      fontSize: 10.5,
-                      color: 'var(--muted)',
-                      marginTop: 'auto',
-                      flex: 'none',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {worktreeName}
-                  </div>
-                </button>
+                <path
+                  key={`${e.from}-${e.to}`}
+                  d={e.d}
+                  fill="none"
+                  stroke={upMerged ? 'var(--accent)' : 'var(--border2)'}
+                  strokeWidth={upMerged ? 2 : 1.5}
+                  strokeDasharray={upMerged ? '0' : '5 5'}
+                />
               );
             })}
+          </svg>
+          {layout.nodes.map((n) => {
+            const t = byKey.get(n.id)!;
+            const meta = STATUS_META[t.status] ?? STATUS_META.draft;
+            const sel = drawerKey === n.id;
+            const pulsing = t.status === 'running';
+            const worktreeName = formatWorktreeName(t.branch_name);
+            return (
+              <button
+                key={n.id}
+                onClick={() => setDrawerKey(n.id)}
+                style={{
+                  position: 'absolute',
+                  left: n.x,
+                  top: n.y,
+                  width: NODE_WIDTH,
+                  height: NODE_HEIGHT,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  background: 'var(--panel)',
+                  borderTop: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                  borderRight: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                  borderBottom: `1px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                  borderLeft: `3px solid ${meta.color}`,
+                  borderRadius: 11,
+                  padding: '12px 13px 10px',
+                  boxShadow: sel ? '0 8px 24px -6px var(--shadow)' : '0 1px 2px var(--shadow)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6, flex: 'none' }}>
+                  <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
+                    #{t.number}
+                  </span>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: 99,
+                      color: meta.color,
+                      background: meta.soft,
+                    }}
+                  >
+                    <span style={{ width: 6, height: 6, borderRadius: 99, background: meta.color, animation: pulsing ? 'ar-pulse 1.3s infinite' : 'none' }} />
+                    {meta.label}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    lineHeight: 1.28,
+                    color: 'var(--ink)',
+                    display: '-webkit-box',
+                    WebkitBoxOrient: 'vertical',
+                    WebkitLineClamp: 2,
+                    overflow: 'hidden',
+                    minHeight: 0,
+                  }}
+                >
+                  {t.title}
+                </div>
+                <div
+                  className="mono"
+                  title={worktreeName}
+                  style={{
+                    fontSize: 10.5,
+                    color: 'var(--muted)',
+                    marginTop: 'auto',
+                    flex: 'none',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {worktreeName}
+                </div>
+              </button>
+            );
+          })}
         </GraphViewport>
       </div>
       {session && (
