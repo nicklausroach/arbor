@@ -1,4 +1,7 @@
-# <img src="https://raw.githubusercontent.com/nicklausroach/arbor/main/logo.svg" alt="Arbor" width="48" height="48" /> Arbor
+<div align="center">
+  <img src="https://raw.githubusercontent.com/nicklausroach/arbor/main/logo.svg" alt="Arbor" width="120" height="120" />
+  <h1>Arbor</h1>
+</div>
 
 **Arbor** is a dependency-aware coding tool that helps teams plan and execute complex software projects. It turns high-level objectives into structured, dependency-aware task graphs and coordinates agent-based execution with full traceability.
 
