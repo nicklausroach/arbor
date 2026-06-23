@@ -7,6 +7,14 @@ CREATE TABLE IF NOT EXISTS repositories (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+CREATE TABLE IF NOT EXISTS harness_profiles (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  run_command TEXT NOT NULL,
+  resume_command TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
   repository_id TEXT NOT NULL REFERENCES repositories(id),
@@ -17,6 +25,7 @@ CREATE TABLE IF NOT EXISTS projects (
   milestone_url TEXT,
   label_name TEXT NOT NULL DEFAULT 'arbor',
   base_branch TEXT,
+  harness_profile_id TEXT REFERENCES harness_profiles(id),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
