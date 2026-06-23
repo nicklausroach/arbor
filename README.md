@@ -1,4 +1,4 @@
-# ![Arbor](logo.svg) Arbor
+# <img src="logo.svg" alt="Arbor" width="48" height="48" /> Arbor
 
 **Arbor** is a dependency-aware coding tool that helps teams plan and execute complex software projects. It turns high-level objectives into structured, dependency-aware task graphs and coordinates agent-based execution with full traceability.
 
