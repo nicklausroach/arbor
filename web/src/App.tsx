@@ -1,0 +1,113 @@
+import { useEffect, useState } from 'react';
+import { api, type Project, type Repository } from './api';
+import { ConnectView } from './ConnectView';
+import { NewProjectView } from './NewProjectView';
+import { PlanView } from './PlanView';
+import { RunView } from './RunView';
+import { Sidebar } from './Sidebar';
+import { SettingsModal } from './SettingsModal';
+
+type Screen = 'connect' | 'newProject' | 'project';
+
+function App() {
+  const [loading, setLoading] = useState(true);
+  const [repos, setRepos] = useState<Repository[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [currentRepoId, setCurrentRepoId] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [screen, setScreen] = useState<Screen>('connect');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const [loadedRepos, loadedProjects] = await Promise.all([api.listRepos(), api.listProjects()]);
+      setRepos(loadedRepos);
+      setProjects(loadedProjects);
+      const repo = loadedRepos[0] ?? null;
+      if (!repo) {
+        setScreen('connect');
+      } else {
+        setCurrentRepoId(repo.id);
+        const project = loadedProjects.find((p) => p.repository_id === repo.id) ?? null;
+        if (project) {
+          setCurrentProjectId(project.id);
+          setScreen('project');
+        } else {
+          setScreen('newProject');
+        }
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  function selectRepo(repoId: string) {
+    setCurrentRepoId(repoId);
+    const project = projects.find((p) => p.repository_id === repoId) ?? null;
+    if (project) {
+      setCurrentProjectId(project.id);
+      setScreen('project');
+    } else {
+      setCurrentProjectId(null);
+      setScreen('newProject');
+    }
+  }
+
+  function handleConnected(repo: Repository) {
+    setRepos((prev) => [...prev.filter((r) => r.id !== repo.id), repo]);
+    setCurrentRepoId(repo.id);
+    setCurrentProjectId(null);
+    setScreen('newProject');
+  }
+
+  function handleProjectCreated(project: Project) {
+    setProjects((prev) => [...prev, project]);
+    setCurrentProjectId(project.id);
+    setScreen('project');
+  }
+
+  function handleApproved(updated: Project) {
+    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  }
+
+  const currentProject = projects.find((p) => p.id === currentProjectId) ?? null;
+  const projectsForRepo = projects.filter((p) => p.repository_id === currentRepoId);
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex' }}>
+      {!loading && repos.length > 0 && (
+        <Sidebar
+          repos={repos}
+          currentRepoId={currentRepoId}
+          projects={projectsForRepo}
+          currentProjectId={screen === 'project' ? currentProjectId : null}
+          onSelectRepo={selectRepo}
+          onConnectAnother={() => setScreen('connect')}
+          onSelectProject={(id) => {
+            setCurrentProjectId(id);
+            setScreen('project');
+          }}
+          onNewProject={() => setScreen('newProject')}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+      )}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {loading ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading…</div>
+        ) : screen === 'connect' ? (
+          <ConnectView onConnected={handleConnected} />
+        ) : screen === 'newProject' && currentRepoId ? (
+          <NewProjectView repositoryId={currentRepoId} onCreated={handleProjectCreated} />
+        ) : currentProject ? (
+          currentProject.status === 'draft' || currentProject.status === 'approval_failed' ? (
+            <PlanView projectId={currentProject.id} onApproved={(result) => handleApproved(result.project)} />
+          ) : (
+            <RunView projectId={currentProject.id} />
+          )
+        ) : null}
+      </div>
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+    </div>
+  );
+}
+
+export default App;

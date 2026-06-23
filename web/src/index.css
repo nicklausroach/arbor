@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #f3f0e8;
+  --panel: #fbf9f3;
+  --panel2: #efeadd;
+  --ink: #2c2620;
+  --ink2: #6b6254;
+  --muted: #9a9080;
+  --border: #e5ded0;
+  --border2: #d7ceba;
+  --accent: oklch(0.52 0.08 150);
+  --accent-soft: oklch(0.93 0.03 150);
+  --shadow: rgba(70, 55, 30, 0.16);
+  --logbg: #26221b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+#root {
+  width: auto;
+  max-width: none;
+  border-inline: none;
+  text-align: left;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+input,
+textarea {
+  font-family: inherit;
+}
+
+code,
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.serif {
+  font-family: Newsreader, serif;
+}
+
+@keyframes ar-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes ar-dash {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
