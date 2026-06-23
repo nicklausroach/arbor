@@ -1,11 +1,13 @@
 import { Router } from "express";
-import { AnthropicPlannerProvider } from "../planner/anthropicProvider.js";
+import { AnthropicPlannerProvider, MalformedPlannerOutputError } from "../planner/anthropicProvider.js";
+import type { PlannerEvent } from "../planner/llm.js";
 import type { DraftTicket } from "../planner/types.js";
 import { validateGraph } from "../planner/validate.js";
 import { getAnthropicKey } from "./settings.js";
 import {
   addChatMessage,
   createProject,
+  deleteProject,
   getLatestGraphVersion,
   getProject,
   getRepository,
@@ -35,8 +37,10 @@ projectsRouter.post("/", (req, res) => {
     res.status(404).json({ error: "repository not found" });
     return;
   }
+  // No chat message is seeded here — the client kicks off planning by sending the
+  // objective as the first chat message through the normal /chat stream, so the very
+  // first turn runs through the exact same code path as every later message.
   const project = createProject({ repositoryId, title, objective });
-  addChatMessage(project.id, "user", objective);
   res.status(201).json(project);
 });
 
@@ -62,6 +66,16 @@ projectsRouter.get("/:id", (req, res) => {
   res.json(state);
 });
 
+projectsRouter.delete("/:id", (req, res) => {
+  const project = getProject(req.params.id);
+  if (!project) {
+    res.status(404).json({ error: "project not found" });
+    return;
+  }
+  deleteProject(req.params.id);
+  res.json({ ok: true });
+});
+
 projectsRouter.post("/:id/chat", async (req, res) => {
   const project = getProject(req.params.id);
   if (!project) {
@@ -84,55 +98,97 @@ projectsRouter.post("/:id/chat", async (req, res) => {
     return;
   }
 
-  addChatMessage(project.id, "user", message);
+  // Captured before the new user message is inserted — the new message is sent to the
+  // planner separately as `userMessage`, so including it in `history` too would duplicate it.
   const history = listChatMessages(project.id)
     .filter((m) => m.role === "user" || m.role === "assistant")
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
   const previous = getLatestGraphVersion(project.id);
 
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+  const send = (event: Record<string, unknown>) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+
+  send({ type: "message", message: addChatMessage(project.id, "user", message) });
+
+  const onEvent = (event: PlannerEvent) => {
+    if (event.type === "text_delta") {
+      send({ type: "text_delta", text: event.text });
+    } else if (event.type === "text") {
+      send({ type: "message", message: addChatMessage(project.id, "assistant", event.text) });
+    } else {
+      send({ type: "message", message: addChatMessage(project.id, "tool", `${event.tag} ${event.text}`) });
+    }
+  };
+
   const provider = new AnthropicPlannerProvider(apiKey);
 
   try {
-    let result = await provider.draftGraph({
-      repoPath: repo.local_path,
-      objective: project.objective,
-      pinnedPaths: pinnedPaths ?? [],
-      history,
-      userMessage: message,
-      previousTickets: previous?.tickets,
-      repairErrors: undefined,
-    });
-    for (const call of result.toolCalls) addChatMessage(project.id, "tool", `${call.tag} ${call.text}`);
-
-    let validation = validateGraph(result.tickets);
-    if (!validation.ok) {
-      addChatMessage(project.id, "system", `Invalid graph, attempting repair: ${validation.errors.join("; ")}`);
-      result = await provider.draftGraph({
+    const draftGraph = (repairErrors: string[] | undefined) =>
+      provider.draftGraph({
         repoPath: repo.local_path,
         objective: project.objective,
         pinnedPaths: pinnedPaths ?? [],
         history,
         userMessage: message,
         previousTickets: previous?.tickets,
-        repairErrors: validation.errors,
+        repairErrors,
+        onEvent,
       });
-      for (const call of result.toolCalls) addChatMessage(project.id, "tool", `${call.tag} ${call.text}`);
-      validation = validateGraph(result.tickets);
+
+    let result: Awaited<ReturnType<typeof draftGraph>> | undefined;
+    let repairErrors: string[] | undefined;
+    let tickets: DraftTicket[] | undefined;
+
+    try {
+      result = await draftGraph(undefined);
+    } catch (err) {
+      if (!(err instanceof MalformedPlannerOutputError)) throw err;
+      repairErrors = err.errors;
     }
 
-    addChatMessage(project.id, "assistant", result.assistantMessage || "(updated the plan)");
-
-    if (!validation.ok) {
-      addChatMessage(project.id, "system", `Repair failed, keeping previous version: ${validation.errors.join("; ")}`);
-      res.status(422).json({ error: "Planner produced an invalid graph", errors: validation.errors });
-      return;
+    if (result) {
+      const validation = validateGraph(result.tickets);
+      if (validation.ok) tickets = validation.tickets;
+      else repairErrors = validation.errors;
     }
 
-    insertGraphVersion(project.id, validation.tickets);
-    res.json(projectState(project.id));
+    if (repairErrors) {
+      send({ type: "message", message: addChatMessage(project.id, "system", `Invalid graph, attempting repair: ${repairErrors.join("; ")}`) });
+      try {
+        result = await draftGraph(repairErrors);
+      } catch (err) {
+        if (!(err instanceof MalformedPlannerOutputError)) throw err;
+        send({ type: "message", message: addChatMessage(project.id, "system", `Repair failed, keeping previous version: ${err.errors.join("; ")}`) });
+        send({ type: "error", error: "Planner produced a malformed graph", errors: err.errors });
+        res.end();
+        return;
+      }
+      const validation = validateGraph(result.tickets);
+      if (!validation.ok) {
+        send({ type: "message", message: addChatMessage(project.id, "system", `Repair failed, keeping previous version: ${validation.errors.join("; ")}`) });
+        send({ type: "error", error: "Planner produced an invalid graph", errors: validation.errors });
+        res.end();
+        return;
+      }
+      tickets = validation.tickets;
+    }
+
+    if (!result || !tickets) throw new Error("Planner did not produce a graph");
+
+    if (!result.assistantMessage.trim()) {
+      send({ type: "message", message: addChatMessage(project.id, "assistant", "Updated the plan.") });
+    }
+    insertGraphVersion(project.id, tickets);
+    send({ type: "done", state: projectState(project.id) });
+    res.end();
   } catch (err) {
-    addChatMessage(project.id, "system", `Planner error: ${(err as Error).message}`);
-    res.status(500).json({ error: (err as Error).message });
+    send({ type: "message", message: addChatMessage(project.id, "system", `Planner error: ${(err as Error).message}`) });
+    send({ type: "error", error: (err as Error).message });
+    res.end();
   }
 });
 

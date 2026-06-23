@@ -10,6 +10,7 @@ interface Props {
   onConnectAnother: () => void;
   onSelectProject: (id: string) => void;
   onNewProject: () => void;
+  onDeleteProject: (id: string) => void;
   onOpenSettings: () => void;
 }
 
@@ -42,9 +43,11 @@ export function Sidebar({
   onConnectAnother,
   onSelectProject,
   onNewProject,
+  onDeleteProject,
   onOpenSettings,
 }: Props) {
   const [repoMenuOpen, setRepoMenuOpen] = useState(false);
+  const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
   const currentRepo = repos.find((r) => r.id === currentRepoId) ?? repos[0] ?? null;
 
   return (
@@ -225,28 +228,65 @@ export function Sidebar({
       {projects.map((p) => {
         const active = p.id === currentProjectId;
         const meta = STATUS_META[p.status] ?? STATUS_META.draft;
+        const isHovered = hoveredProjectId === p.id;
         return (
-          <button
+          <div
             key={p.id}
-            onClick={() => onSelectProject(p.id)}
+            onMouseEnter={() => setHoveredProjectId(p.id)}
+            onMouseLeave={() => setHoveredProjectId(null)}
             style={{
-              width: '100%',
               display: 'flex',
               alignItems: 'center',
-              gap: 9,
-              padding: '8px 10px',
+              gap: 6,
               marginBottom: 2,
-              borderRadius: 9,
-              fontSize: 13,
-              fontWeight: active ? 600 : 500,
-              color: active ? 'var(--ink)' : 'var(--ink2)',
-              background: active ? 'var(--panel2)' : 'transparent',
             }}
           >
-            <span style={{ width: 7, height: 7, borderRadius: 99, flex: 'none', background: meta.dot }} />
-            <span style={{ flex: 1, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</span>
-            <span style={{ fontSize: 10, color: 'var(--muted)' }}>{meta.label}</span>
-          </button>
+            <button
+              onClick={() => onSelectProject(p.id)}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 9,
+                padding: '8px 10px',
+                borderRadius: 9,
+                fontSize: 13,
+                fontWeight: active ? 600 : 500,
+                color: active ? 'var(--ink)' : 'var(--ink2)',
+                background: active ? 'var(--panel2)' : 'transparent',
+                minWidth: 0,
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: 99, flex: 'none', background: meta.dot }} />
+              <span style={{ flex: 1, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{p.title}</span>
+              {!isHovered && <span style={{ fontSize: 10, color: 'var(--muted)', flex: 'none', whiteSpace: 'nowrap' }}>{meta.label}</span>}
+            </button>
+            {isHovered && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteProject(p.id);
+                }}
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 6,
+                  flex: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 16,
+                  fontWeight: 400,
+                  color: 'oklch(0.57 0.14 28)',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                }}
+                title="Delete project"
+              >
+                ×
+              </button>
+            )}
+          </div>
         );
       })}
       <button

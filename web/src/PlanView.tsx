@@ -17,8 +17,10 @@ export function PlanView({ projectId, onApproved }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [approveOpen, setApproveOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const kickedOffRef = useRef(false);
 
   async function refresh() {
     setState(await api.getProject(projectId));
@@ -28,24 +30,49 @@ export function PlanView({ projectId, onApproved }: Props) {
     refresh();
   }, [projectId]);
 
+  // A freshly created project has its objective stored but no chat history yet — kick
+  // off the first planner turn automatically instead of waiting for a second message.
+  useEffect(() => {
+    if (!state || kickedOffRef.current) return;
+    if (state.messages.length === 0 && state.project.objective) {
+      kickedOffRef.current = true;
+      send(state.project.objective);
+    }
+  }, [state]);
+
   useEffect(() => {
     chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight });
-  }, [state?.messages.length]);
+  }, [state?.messages.length, streamingText]);
 
-  async function handleSend() {
-    const message = chatInput.trim();
+  async function send(message: string) {
     if (!message || sending) return;
     setSending(true);
     setError(null);
-    setChatInput('');
+    setStreamingText('');
     try {
-      setState(await api.sendChat(projectId, message, pinnedPaths));
+      await api.streamChat(projectId, message, pinnedPaths, {
+        onMessage: (chatMessage) => {
+          setStreamingText('');
+          setState((s) => (s ? { ...s, messages: [...s.messages, chatMessage] } : s));
+        },
+        onTextDelta: (text) => setStreamingText((t) => t + text),
+        onDone: (finalState) => setState(finalState),
+        onError: (err) => setError(err),
+      });
     } catch (err) {
       setError((err as Error).message);
       await refresh();
     } finally {
       setSending(false);
+      setStreamingText('');
     }
+  }
+
+  async function handleSend() {
+    const message = chatInput.trim();
+    if (!message) return;
+    setChatInput('');
+    await send(message);
   }
 
   if (!state) return <div style={{ flex: 1, padding: 40 }}>Loading…</div>;
@@ -110,7 +137,7 @@ export function PlanView({ projectId, onApproved }: Props) {
         </button>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
         <div
           style={{
             width: 362,
@@ -119,6 +146,8 @@ export function PlanView({ projectId, onApproved }: Props) {
             display: 'flex',
             flexDirection: 'column',
             background: 'var(--panel)',
+            minHeight: 0,
+            overflow: 'hidden',
           }}
         >
           <div
@@ -140,7 +169,8 @@ export function PlanView({ projectId, onApproved }: Props) {
             {state.messages.map((m) => (
               <ChatBubble key={m.id} role={m.role} content={m.content} />
             ))}
-            {sending && <ChatBubble role="system" content="Thinking…" />}
+            {sending && streamingText && <ChatBubble role="assistant" content={streamingText} />}
+            {sending && !streamingText && <ChatBubble role="system" content="Thinking…" />}
           </div>
           {error && <div style={{ padding: '0 18px 8px', color: 'oklch(0.57 0.14 28)', fontSize: 12 }}>{error}</div>}
           <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>

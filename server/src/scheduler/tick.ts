@@ -19,20 +19,25 @@ export async function tick(projectId: string): Promise<void> {
   const octokit = octokitFromStoredPat();
   if (!repo || !octokit) return;
 
-  // 0. Recover tickets left "running" by a server restart mid-run: the in-memory
-  // process handle is gone, but the agent may have already pushed a PR. Readiness
-  // is recomputed from persisted DAG + live PR state, not from in-memory run state.
-  for (const t of listTicketsWithDeps(projectId).filter((t) => t.status === "running")) {
+  // 0. Recover tickets left "running" by a server restart mid-run, or "failed" tickets
+  // that may have created a PR: the in-memory process handle is gone, but the agent may
+  // have already pushed a PR. Readiness is recomputed from persisted DAG + live PR state.
+  for (const t of listTicketsWithDeps(projectId).filter((t) => t.status === "running" || t.status === "failed")) {
     const run = getLatestRunForTicket(t.id);
-    if (!run || run.status !== "running" || !t.branch_name) continue;
+    if (!run || !t.branch_name) continue;
+    if (t.status === "running" && run.status !== "running") continue;
     try {
       const pr = await findOpenPrForBranch(octokit, repo.owner, repo.name, t.branch_name);
       if (pr) {
-        finishRun(run.id, "succeeded", pr.number, pr.url);
-        setTicketStatus(t.id, "review");
+        if (run.status !== "succeeded") {
+          finishRun(run.id, "succeeded", pr.number, pr.url);
+        }
+        if (t.status === "running" || t.status === "failed") {
+          setTicketStatus(t.id, "review");
+        }
       }
     } catch {
-      // transient GitHub error — leave running, next tick retries
+      // transient GitHub error — leave as is, next tick retries
     }
   }
 

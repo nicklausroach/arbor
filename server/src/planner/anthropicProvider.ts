@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { grep, listDir, readFile, repoTree } from "./repoTools.js";
 import type { PlannerInput, PlannerProvider } from "./llm.js";
-import type { DraftTicket, PlannerResult } from "./types.js";
+import type { DraftTicket, PlannerResult, ProjectSummary } from "./types.js";
 
 const MODEL = "claude-sonnet-4-5";
 const MAX_TURNS = 14;
@@ -77,6 +77,89 @@ const READ_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
+type ParsedProposeGraphInput =
+  | { ok: true; summary: ProjectSummary; tickets: DraftTicket[] }
+  | { ok: false; errors: string[] };
+
+export class MalformedPlannerOutputError extends Error {
+  constructor(readonly errors: string[]) {
+    super(`Planner produced malformed graph: ${errors.join("; ")}`);
+    this.name = "MalformedPlannerOutputError";
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringArray(value: unknown, field: string, errors: string[]): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) {
+    errors.push(`${field} must be an array`);
+    return undefined;
+  }
+  const nonStringIndex = value.findIndex((item) => typeof item !== "string");
+  if (nonStringIndex !== -1) {
+    errors.push(`${field}[${nonStringIndex}] must be a string`);
+    return undefined;
+  }
+  return value;
+}
+
+export function parseProposeGraphInput(input: unknown): ParsedProposeGraphInput {
+  const errors: string[] = [];
+  if (!isRecord(input)) return { ok: false, errors: ["propose_graph input must be an object"] };
+
+  const summaryInput = input.summary;
+  let summary: ProjectSummary | undefined;
+  if (!isRecord(summaryInput)) {
+    errors.push("summary must be an object");
+  } else {
+    const { title, objective } = summaryInput;
+    if (typeof title !== "string") errors.push("summary.title must be a string");
+    if (typeof objective !== "string") errors.push("summary.objective must be a string");
+    if (typeof title === "string" && typeof objective === "string") summary = { title, objective };
+  }
+
+  if (!Array.isArray(input.tickets)) {
+    errors.push("tickets must be an array");
+    return { ok: false, errors };
+  }
+
+  const tickets: DraftTicket[] = [];
+  input.tickets.forEach((ticketInput, index) => {
+    if (!isRecord(ticketInput)) {
+      errors.push(`tickets[${index}] must be an object`);
+      return;
+    }
+
+    const { id, title, problem, implementationNotes } = ticketInput;
+    if (typeof id !== "string") errors.push(`tickets[${index}].id must be a string`);
+    if (typeof title !== "string") errors.push(`tickets[${index}].title must be a string`);
+    if (typeof problem !== "string") errors.push(`tickets[${index}].problem must be a string`);
+    if (implementationNotes !== undefined && typeof implementationNotes !== "string") {
+      errors.push(`tickets[${index}].implementationNotes must be a string`);
+    }
+
+    const acceptanceCriteria = stringArray(ticketInput.acceptanceCriteria, `tickets[${index}].acceptanceCriteria`, errors) ?? [];
+    const dependsOn = stringArray(ticketInput.dependsOn, `tickets[${index}].dependsOn`, errors) ?? [];
+
+    if (typeof id === "string" && typeof title === "string" && typeof problem === "string") {
+      tickets.push({
+        id,
+        title,
+        problem,
+        acceptanceCriteria,
+        ...(typeof implementationNotes === "string" ? { implementationNotes } : {}),
+        dependsOn,
+      });
+    }
+  });
+
+  if (errors.length || !summary) return { ok: false, errors };
+  return { ok: true, summary, tickets };
+}
+
 function runTool(repoPath: string, name: string, input: Record<string, unknown>): string {
   switch (name) {
     case "list_dir":
@@ -127,15 +210,21 @@ export class AnthropicPlannerProvider implements PlannerProvider {
 
     const toolCalls: { tag: string; text: string }[] = [];
     let assistantMessage = "";
+    const onEvent = input.onEvent ?? (() => {});
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const response = await client.messages.create({
+      const stream = client.messages.stream({
         model: MODEL,
         max_tokens: 4096,
         system,
         tools: [...READ_TOOLS, PROPOSE_GRAPH_TOOL],
         messages,
       });
+      stream.on("text", (delta) => onEvent({ type: "text_delta", text: delta }));
+      stream.on("contentBlock", (block) => {
+        if (block.type === "text" && block.text.trim()) onEvent({ type: "text", text: block.text });
+      });
+      const response = await stream.finalMessage();
 
       const textBlocks = response.content.filter((b): b is Anthropic.TextBlock => b.type === "text");
       if (textBlocks.length) assistantMessage = textBlocks.map((b) => b.text).join("\n");
@@ -144,13 +233,11 @@ export class AnthropicPlannerProvider implements PlannerProvider {
         (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "propose_graph"
       );
       if (proposeBlock) {
-        const raw = proposeBlock.input as {
-          summary: { title: string; objective: string };
-          tickets: DraftTicket[];
-        };
+        const parsed = parseProposeGraphInput(proposeBlock.input);
+        if (!parsed.ok) throw new MalformedPlannerOutputError(parsed.errors);
         return {
-          summary: raw.summary,
-          tickets: raw.tickets.map((t) => ({ ...t, acceptanceCriteria: t.acceptanceCriteria ?? [], dependsOn: t.dependsOn ?? [] })),
+          summary: parsed.summary,
+          tickets: parsed.tickets,
           assistantMessage,
           toolCalls,
         } satisfies PlannerResult;
@@ -165,6 +252,7 @@ export class AnthropicPlannerProvider implements PlannerProvider {
       messages.push({ role: "assistant", content: response.content });
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
       for (const block of toolUseBlocks) {
+        onEvent({ type: "tool_call", tag: block.name, text: JSON.stringify(block.input) });
         let result: string;
         try {
           result = runTool(input.repoPath, block.name, block.input as Record<string, unknown>);

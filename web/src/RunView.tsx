@@ -4,7 +4,7 @@ import { layoutGraph, NODE_HEIGHT, NODE_WIDTH } from './dagLayout';
 import { GraphViewport } from './GraphViewport';
 import { IntegratedTerminal } from './IntegratedTerminal';
 
-const SESSION_ELIGIBLE_STATUSES = new Set(['running', 'review']);
+const SESSION_ELIGIBLE_STATUSES = new Set(['running', 'review', 'failed']);
 
 interface Props {
   projectId: string;

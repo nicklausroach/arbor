@@ -69,11 +69,30 @@ function App() {
     setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
   }
 
+  async function handleDeleteProject(projectId: string) {
+    if (!confirm('Delete this project? This cannot be undone.')) return;
+    try {
+      await api.deleteProject(projectId);
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      if (currentProjectId === projectId) {
+        setCurrentProjectId(null);
+        const remainingProject = projects.find((p) => p.repository_id === currentRepoId && p.id !== projectId) ?? null;
+        if (remainingProject) {
+          setCurrentProjectId(remainingProject.id);
+        } else {
+          setScreen('newProject');
+        }
+      }
+    } catch (err) {
+      alert(`Failed to delete project: ${(err as Error).message}`);
+    }
+  }
+
   const currentProject = projects.find((p) => p.id === currentProjectId) ?? null;
   const projectsForRepo = projects.filter((p) => p.repository_id === currentRepoId);
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex' }}>
+    <div style={{ height: '100vh', display: 'flex', overflow: 'hidden' }}>
       {!loading && repos.length > 0 && (
         <Sidebar
           repos={repos}
@@ -87,10 +106,11 @@ function App() {
             setScreen('project');
           }}
           onNewProject={() => setScreen('newProject')}
+          onDeleteProject={handleDeleteProject}
           onOpenSettings={() => setSettingsOpen(true)}
         />
       )}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {loading ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading…</div>
         ) : screen === 'connect' ? (

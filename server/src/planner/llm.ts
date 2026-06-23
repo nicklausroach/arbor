@@ -5,6 +5,11 @@ export interface ChatTurn {
   content: string;
 }
 
+export type PlannerEvent =
+  | { type: "text_delta"; text: string }
+  | { type: "text"; text: string }
+  | { type: "tool_call"; tag: string; text: string };
+
 export interface PlannerInput {
   repoPath: string;
   objective: string;
@@ -13,6 +18,7 @@ export interface PlannerInput {
   userMessage: string;
   previousTickets: DraftTicket[] | undefined;
   repairErrors: string[] | undefined;
+  onEvent?: (event: PlannerEvent) => void;
 }
 
 export interface PlannerProvider {

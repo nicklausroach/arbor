@@ -128,6 +128,51 @@ export interface RunState {
   tickets: TicketWithRuns[];
 }
 
+export interface ChatStreamHandlers {
+  onMessage: (message: ChatMessage) => void;
+  onTextDelta: (text: string) => void;
+  onDone: (state: ProjectState) => void;
+  onError: (error: string) => void;
+}
+
+async function streamChat(
+  projectId: string,
+  message: string,
+  pinnedPaths: string[],
+  handlers: ChatStreamHandlers
+): Promise<void> {
+  const res = await fetch(`${BASE}/projects/${projectId}/chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message, pinnedPaths }),
+  });
+  if (!res.ok || !res.body) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    handlers.onError(body.error ?? `Request failed: ${res.status}`);
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split('\n\n');
+    buffer = chunks.pop() ?? '';
+    for (const chunk of chunks) {
+      const line = chunk.split('\n').find((l) => l.startsWith('data: '));
+      if (!line) continue;
+      const event = JSON.parse(line.slice(6));
+      if (event.type === 'message') handlers.onMessage(event.message);
+      else if (event.type === 'text_delta') handlers.onTextDelta(event.text);
+      else if (event.type === 'done') handlers.onDone(event.state);
+      else if (event.type === 'error') handlers.onError(event.error);
+    }
+  }
+}
+
 export const api = {
   listRepos: () => request<Repository[]>('/repos'),
   inspectRepo: (localPath: string) =>
@@ -145,8 +190,9 @@ export const api = {
   createProject: (params: { repositoryId: string; title: string; objective: string }) =>
     request<Project>('/projects', { method: 'POST', body: JSON.stringify(params) }),
   getProject: (id: string) => request<ProjectState>(`/projects/${id}`),
-  sendChat: (id: string, message: string, pinnedPaths: string[]) =>
-    request<ProjectState>(`/projects/${id}/chat`, { method: 'POST', body: JSON.stringify({ message, pinnedPaths }) }),
+  deleteProject: (id: string) => request<{ ok: true }>(`/projects/${id}`, { method: 'DELETE' }),
+  streamChat: (id: string, message: string, pinnedPaths: string[], handlers: ChatStreamHandlers) =>
+    streamChat(id, message, pinnedPaths, handlers),
   editTicket: (projectId: string, ticketId: string, fields: Partial<DraftTicket>) =>
     request<ProjectState>(`/projects/${projectId}/tickets/${ticketId}`, {
       method: 'PATCH',

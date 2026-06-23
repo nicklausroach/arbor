@@ -16,10 +16,13 @@ export function attachSessionServer(httpServer: Server): void {
     const ticket = run ? getTicketById(run.ticket_id) : undefined;
 
     if (!run || !ticket || !run.session_id) {
+      console.error(`[session] Connection failed: runId=${runId}, run=${Boolean(run)}, ticket=${Boolean(ticket)}, session_id=${run?.session_id || "none"}`);
       ws.send(JSON.stringify({ type: "output", data: "No resumable session for this run.\r\n" }));
       ws.close();
       return;
     }
+
+    console.log(`[session] Connected: runId=${runId}, ticket=${ticket.id}`);
 
     const cwd = worktreePath(ticket.project_id, ticket.id);
     let term;

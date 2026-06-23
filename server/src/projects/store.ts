@@ -38,6 +38,15 @@ export function createProject(params: { repositoryId: string; title: string; obj
   return getProject(id)!;
 }
 
+export function deleteProject(id: string): void {
+  db.prepare("DELETE FROM chat_messages WHERE project_id = ?").run(id);
+  db.prepare("DELETE FROM dependencies WHERE project_id = ?").run(id);
+  db.prepare("DELETE FROM runs WHERE ticket_id IN (SELECT id FROM tickets WHERE project_id = ?)").run(id);
+  db.prepare("DELETE FROM tickets WHERE project_id = ?").run(id);
+  db.prepare("DELETE FROM graph_versions WHERE project_id = ?").run(id);
+  db.prepare("DELETE FROM projects WHERE id = ?").run(id);
+}
+
 export function getProject(id: string): ProjectRow | undefined {
   return db.prepare("SELECT * FROM projects WHERE id = ?").get(id) as ProjectRow | undefined;
 }
@@ -109,18 +118,22 @@ export interface ChatMessageRow {
   created_at: string;
 }
 
-export function addChatMessage(projectId: string, role: ChatMessageRow["role"], content: string): void {
+export function addChatMessage(projectId: string, role: ChatMessageRow["role"], content: string): ChatMessageRow {
+  const id = newId("msg");
   db.prepare("INSERT INTO chat_messages (id, project_id, role, content) VALUES (?, ?, ?, ?)").run(
-    newId("msg"),
+    id,
     projectId,
     role,
     content
   );
+  return db.prepare("SELECT * FROM chat_messages WHERE id = ?").get(id) as ChatMessageRow;
 }
 
 export function listChatMessages(projectId: string): ChatMessageRow[] {
+  // Tie-break on rowid: rapid successive inserts within the same planner turn can
+  // share a created_at millisecond, and only rowid reflects true insertion order.
   return db
-    .prepare("SELECT * FROM chat_messages WHERE project_id = ? ORDER BY created_at ASC")
+    .prepare("SELECT * FROM chat_messages WHERE project_id = ? ORDER BY created_at ASC, rowid ASC")
     .all(projectId) as ChatMessageRow[];
 }
 

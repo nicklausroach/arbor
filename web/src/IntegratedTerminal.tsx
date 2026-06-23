@@ -31,13 +31,17 @@ export function IntegratedTerminal({ runId, ticketNumber, branch, onClose }: Pro
     const ws = new WebSocket(`${protocol}://${window.location.host}/ws/runs/${runId}/session`);
 
     ws.onopen = () => {
+      term.writeln('connected.');
       ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
     };
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data as string) as { type: string; data?: string };
       if (msg.type === 'output' && msg.data) term.write(msg.data);
     };
-    ws.onerror = () => term.writeln('\r\n[connection error]');
+    ws.onerror = (event) => {
+      console.error('WebSocket error:', event);
+      term.writeln(`\r\n[connection error: ${event.type}]`);
+    };
     ws.onclose = () => term.writeln('\r\n[session closed]');
 
     const onData = term.onData((data) => {
