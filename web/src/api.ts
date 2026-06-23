@@ -112,6 +112,7 @@ export interface Run {
   pr_number: number | null;
   pr_url: string | null;
   log_path: string | null;
+  session_id: string | null;
   started_at: string | null;
   finished_at: string | null;
   created_at: string;

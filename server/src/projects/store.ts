@@ -175,6 +175,10 @@ export function getTicketByStableKey(projectId: string, stableKey: string): Tick
     | undefined;
 }
 
+export function getTicketById(ticketId: string): TicketRow | undefined {
+  return db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as TicketRow | undefined;
+}
+
 export function listTickets(projectId: string): TicketRow[] {
   return db.prepare("SELECT * FROM tickets WHERE project_id = ? ORDER BY number ASC").all(projectId) as TicketRow[];
 }
@@ -232,6 +236,7 @@ export interface RunRow {
   pr_number: number | null;
   pr_url: string | null;
   log_path: string | null;
+  session_id: string | null;
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
@@ -242,12 +247,12 @@ export function countRunsForTicket(ticketId: string): number {
   return row.n;
 }
 
-export function insertRun(ticketId: string, logPath: string): RunRow {
+export function insertRun(ticketId: string, logPath: string, sessionId?: string): RunRow {
   const id = newId("run");
   const attemptNumber = countRunsForTicket(ticketId) + 1;
   db.prepare(
-    "INSERT INTO runs (id, ticket_id, attempt_number, status, log_path, started_at) VALUES (?, ?, ?, 'running', ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
-  ).run(id, ticketId, attemptNumber, logPath);
+    "INSERT INTO runs (id, ticket_id, attempt_number, status, log_path, session_id, started_at) VALUES (?, ?, ?, 'running', ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+  ).run(id, ticketId, attemptNumber, logPath, sessionId ?? null);
   return db.prepare("SELECT * FROM runs WHERE id = ?").get(id) as RunRow;
 }
 

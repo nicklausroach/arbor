@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS runs (
   pr_number INTEGER,
   pr_url TEXT,
   log_path TEXT,
+  session_id TEXT,
   started_at TEXT,
   finished_at TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))

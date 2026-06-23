@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
 import type { Octokit } from "octokit";
 import { findOpenPrForBranch } from "../github/client.js";
@@ -25,7 +26,12 @@ export function startTicketRun(params: {
 }): void {
   const { project, repo, ticket, dependencyRefs, agentCommand, octokit } = params;
   const runLogPath = logPath(ticket.id + "-" + Date.now());
-  const run = insertRun(ticket.id, runLogPath);
+  // Session resume ("Connect to session") is Claude Code-specific; only attach a
+  // --session-id when the configured agent command actually invokes claude.
+  const isClaudeAgent = /^\s*claude\b/.test(agentCommand);
+  const sessionId = isClaudeAgent ? randomUUID() : undefined;
+  const run = insertRun(ticket.id, runLogPath, sessionId);
+  const spawnCommand = sessionId ? `${agentCommand} --session-id ${sessionId}` : agentCommand;
   setTicketStatus(ticket.id, "running");
 
   const worktreeDir = worktreePath(project.id, ticket.id);
@@ -47,10 +53,10 @@ export function startTicketRun(params: {
     dependencyRefs,
   });
 
-  writeFileSync(runLogPath, `$ ${agentCommand}\n(cwd: ${worktreeDir})\n\n`);
+  writeFileSync(runLogPath, `$ ${spawnCommand}\n(cwd: ${worktreeDir})\n\n`);
 
   let output = "";
-  const child = spawn(agentCommand, { cwd: worktreeDir, shell: true, stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn(spawnCommand, { cwd: worktreeDir, shell: true, stdio: ["pipe", "pipe", "pipe"] });
   child.stdin.write(prompt);
   child.stdin.end();
   child.stdout.on("data", (chunk: Buffer) => {

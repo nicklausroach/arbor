@@ -14,6 +14,11 @@ db.pragma("foreign_keys = ON");
 export function migrate(): void {
   const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
   db.exec(schema);
+  try {
+    db.exec("ALTER TABLE runs ADD COLUMN session_id TEXT");
+  } catch {
+    // column already exists
+  }
 }
 
 export function getSetting(key: string): string | undefined {

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type RunState, type TicketWithRuns } from './api';
 import { layoutGraph, NODE_HEIGHT, NODE_WIDTH } from './dagLayout';
+import { IntegratedTerminal } from './IntegratedTerminal';
+
+const SESSION_ELIGIBLE_STATUSES = new Set(['running', 'review']);
 
 interface Props {
   projectId: string;
@@ -20,6 +23,7 @@ export function RunView({ projectId }: Props) {
   const [state, setState] = useState<RunState | null>(null);
   const [drawerKey, setDrawerKey] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [session, setSession] = useState<{ runId: string; ticketNumber: number; branch: string } | null>(null);
   const pollRef = useRef<number | null>(null);
 
   async function load() {
@@ -190,9 +194,25 @@ export function RunView({ projectId }: Props) {
             })}
           </div>
 
-          {drawerTicket && <RunDrawer ticket={drawerTicket} onClose={() => setDrawerKey(null)} />}
+          {drawerTicket && (
+            <RunDrawer
+              ticket={drawerTicket}
+              onClose={() => setDrawerKey(null)}
+              onConnectSession={(runId) =>
+                setSession({ runId, ticketNumber: drawerTicket.number, branch: drawerTicket.branch_name ?? '' })
+              }
+            />
+          )}
         </div>
       </div>
+      {session && (
+        <IntegratedTerminal
+          runId={session.runId}
+          ticketNumber={session.ticketNumber}
+          branch={session.branch}
+          onClose={() => setSession(null)}
+        />
+      )}
     </div>
   );
 }
@@ -225,10 +245,19 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function RunDrawer({ ticket, onClose }: { ticket: TicketWithRuns; onClose: () => void }) {
+function RunDrawer({
+  ticket,
+  onClose,
+  onConnectSession,
+}: {
+  ticket: TicketWithRuns;
+  onClose: () => void;
+  onConnectSession: (runId: string) => void;
+}) {
   const latestRun = ticket.runs[ticket.runs.length - 1];
   const meta = STATUS_META[ticket.status] ?? STATUS_META.draft;
   const [log, setLog] = useState<string | null>(null);
+  const canConnect = SESSION_ELIGIBLE_STATUSES.has(ticket.status) && Boolean(latestRun?.session_id);
 
   return (
     <div
@@ -270,6 +299,28 @@ function RunDrawer({ ticket, onClose }: { ticket: TicketWithRuns; onClose: () =>
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+        {canConnect && (
+          <button
+            onClick={() => onConnectSession(latestRun!.id)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 9,
+              padding: 12,
+              borderRadius: 11,
+              background: 'var(--ink)',
+              color: 'var(--bg)',
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 14,
+            }}
+          >
+            <span style={{ width: 7, height: 7, borderRadius: 99, background: '#62C554', animation: 'ar-pulse 1.3s infinite' }} />
+            Connect to session
+          </button>
+        )}
         {ticket.github_issue_url && (
           <a
             href={ticket.github_issue_url}
