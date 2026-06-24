@@ -36,6 +36,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && npm install -g @anthropic-ai/claude-code \
     && rm -rf /var/lib/apt/lists/*
 
+# Seed a throwaway git checkout so preview apps have a repository to select in the Connect
+# flow (the container otherwise has no project repo on disk). On boot the server inserts a
+# repositories row pointing here — see seedPreviewRepo / ARBOR_PREVIEW below. origin points
+# at a real sandbox repo you control so the GitHub issue/PR flow works with a PAT; override
+# SEED_REMOTE_URL at build time to use a different repo.
+ARG SEED_REMOTE_URL=https://github.com/nicklausroach/arbor-sandbox.git
+RUN git config --global user.email "preview@arbor.dev" \
+    && git config --global user.name "Arbor Preview" \
+    && mkdir -p /seed/sample-repo \
+    && git -C /seed/sample-repo init -q -b main \
+    && printf '# Arbor Sandbox\n\nThrowaway repo for exercising Arbor preview apps.\n' > /seed/sample-repo/README.md \
+    && git -C /seed/sample-repo add README.md \
+    && git -C /seed/sample-repo commit -q -m "Initial commit" \
+    && git -C /seed/sample-repo remote add origin "$SEED_REMOTE_URL"
+
 # Native addons (better-sqlite3, node-pty) match because builder and runtime share the
 # same base image, so the compiled node_modules copy over directly. npm workspaces hoist
 # all deps to the root node_modules; Node resolves up to it from server/dist.
@@ -50,6 +65,8 @@ COPY --from=builder /app/package.json ./package.json
 ENV ARBOR_HOME=/data \
     ARBOR_DB_PATH=/data/arbor.sqlite \
     ARBOR_WEB_DIR=/app/web/dist \
+    ARBOR_PREVIEW=1 \
+    ARBOR_SEED_REPO_PATH=/seed/sample-repo \
     PORT=8080
 RUN mkdir -p /data
 

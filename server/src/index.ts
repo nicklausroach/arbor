@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { migrate } from "./db/index.js";
+import { seedPreviewRepo } from "./db/seed.js";
 import { previewAuthMiddleware } from "./previewAuth.js";
 import { approveRouter } from "./routes/approve.js";
 import { projectsRouter } from "./routes/projects.js";
@@ -11,11 +12,13 @@ import { reposRouter } from "./routes/repos.js";
 import { runRouter } from "./routes/run.js";
 import { runLogRouter } from "./routes/runLog.js";
 import { settingsRouter } from "./routes/settings.js";
+import { tasksRouter } from "./routes/tasks.js";
 import { listRunningProjects } from "./projects/store.js";
 import { attachSessionServer } from "./runner/sessionServer.js";
 import { tick } from "./scheduler/tick.js";
 
 migrate();
+seedPreviewRepo();
 
 // This process supervises real long-running agent subprocesses and worktrees — an
 // uncaught error in one request/connection handler must never take the whole
@@ -39,6 +42,7 @@ app.use("/api/repos", reposRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api/projects", approveRouter);
 app.use("/api/projects", runRouter);
+app.use("/api/projects", tasksRouter);
 app.use("/api/runs", runLogRouter);
 app.use("/api/settings", settingsRouter);
 

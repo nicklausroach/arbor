@@ -6,8 +6,16 @@ import { beforeEach, describe, expect, it } from "vitest";
 process.env.ARBOR_DB_PATH = join(mkdtempSync(join(tmpdir(), "arbor-store-test-")), "test.sqlite");
 
 const { migrate } = await import("../db/index.js");
-const { createProject, createTask, getTask, listTasksForProject, updateTaskStatus, deleteTask, deleteProject } =
-  await import("./store.js");
+const {
+  createProject,
+  createTask,
+  getTask,
+  listTasksForProject,
+  updateTaskStatus,
+  setTaskSession,
+  deleteTask,
+  deleteProject,
+} = await import("./store.js");
 const { db } = await import("../db/index.js");
 
 function makeRepo(): string {
@@ -80,6 +88,15 @@ describe("task CRUD", () => {
 
     updateTaskStatus(task.id, "completed");
     expect(getTask(task.id)!.status).toBe("completed");
+  });
+
+  it("stores a session id on a task", () => {
+    const repoId = makeRepo();
+    const project = createProject({ repositoryId: repoId, title: "T", objective: "O" });
+    const task = createTask({ projectId: project.id, description: "work" });
+
+    setTaskSession(task.id, "sess-123");
+    expect(getTask(task.id)!.session_id).toBe("sess-123");
   });
 
   it("deletes a task", () => {
