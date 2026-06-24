@@ -49,7 +49,10 @@ jobs:
             const marker = '<!-- arbor-preview -->';
             const body = `${marker}\n🌳 **Arbor preview is live:** ${url}\n\n` +
               `Append \`?token=<your ARBOR_PREVIEW_TOKEN>\` to the URL once to unlock it ` +
-              `(a cookie keeps you signed in). Tears down automatically when this PR closes.`;
+              `(a cookie keeps you signed in). It opens pre-connected to a seeded sandbox ` +
+              `repo so you can test right away — add an Anthropic key and a GitHub PAT in ` +
+              `Settings to exercise the planner and GitHub flow. Tears down automatically ` +
+              `when this PR closes.`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.rest.issues.listComments({ owner, repo, issue_number });
