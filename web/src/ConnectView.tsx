@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api, type GitHubRemote, type Repository } from './api';
 
 interface Props {
@@ -7,9 +7,16 @@ interface Props {
 
 type Step = 0 | 1 | 2;
 
+// The File System Access API is not yet in the lib.dom typings everywhere.
+interface DirectoryPickerWindow {
+  showDirectoryPicker?: () => Promise<{ name: string }>;
+}
+
 export function ConnectView({ onConnected }: Props) {
   const [step, setStep] = useState<Step>(0);
   const [localPath, setLocalPath] = useState('');
+  const [pickerNote, setPickerNote] = useState<string | null>(null);
+  const dirInputRef = useRef<HTMLInputElement>(null);
   const [inspectError, setInspectError] = useState<string | null>(null);
   const [defaultBranch, setDefaultBranch] = useState('');
   const [clean, setClean] = useState(true);
@@ -35,6 +42,48 @@ export function ConnectView({ onConnected }: Props) {
     } catch (err) {
       setInspectError((err as Error).message);
     }
+  }
+
+  async function handleBrowse() {
+    setPickerNote(null);
+    const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
+    if (picker) {
+      try {
+        const handle = await picker();
+        setLocalPath(handle.name);
+        setPickerNote(
+          'Your browser only exposes the folder name, not its full path. Edit the field to the absolute path if needed.',
+        );
+      } catch (err) {
+        // AbortError means the user dismissed the picker — not an error to surface.
+        if ((err as Error).name !== 'AbortError') {
+          setPickerNote('Could not open the directory picker. Type or paste the path instead.');
+        }
+      }
+      return;
+    }
+    // Fallback for browsers without the File System Access API.
+    if (dirInputRef.current) {
+      dirInputRef.current.click();
+    } else {
+      setPickerNote('Directory selection is not supported in this browser. Type or paste the path instead.');
+    }
+  }
+
+  function handleDirInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setPickerNote(null);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    // webkitRelativePath looks like "selected-dir/sub/file"; the first segment is the chosen folder.
+    const first = files[0];
+    const relative = (first as File & { webkitRelativePath?: string }).webkitRelativePath ?? '';
+    const dirName = relative.split('/')[0] || first.name;
+    setLocalPath(dirName);
+    setPickerNote(
+      'Your browser only exposes the folder name, not its full path. Edit the field to the absolute path if needed.',
+    );
+    // Allow re-selecting the same directory later.
+    e.target.value = '';
   }
 
   async function handleAuthorize() {
@@ -140,22 +189,52 @@ export function ConnectView({ onConnected }: Props) {
               <div className="serif" style={{ fontSize: 23, color: 'var(--ink)', marginBottom: 18 }}>
                 Select local repository
               </div>
-              <input
-                value={localPath}
-                onChange={(e) => setLocalPath(e.target.value)}
-                placeholder="/Users/you/code/your-repo"
-                className="mono"
-                style={{
-                  width: '100%',
-                  fontSize: 13,
-                  padding: '12px 14px',
-                  borderRadius: 10,
-                  border: '1.5px solid var(--border2)',
-                  background: 'var(--bg)',
-                  color: 'var(--ink)',
-                  outline: 'none',
-                }}
-              />
+              <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
+                <input
+                  value={localPath}
+                  onChange={(e) => setLocalPath(e.target.value)}
+                  placeholder="/Users/you/code/your-repo"
+                  className="mono"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 13,
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    border: '1.5px solid var(--border2)',
+                    background: 'var(--bg)',
+                    color: 'var(--ink)',
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleBrowse}
+                  style={{
+                    flex: 'none',
+                    padding: '12px 18px',
+                    borderRadius: 10,
+                    border: '1.5px solid var(--border2)',
+                    background: 'var(--panel2)',
+                    color: 'var(--ink)',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Browse…
+                </button>
+                <input
+                  ref={dirInputRef}
+                  type="file"
+                  onChange={handleDirInputChange}
+                  style={{ display: 'none' }}
+                  {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+                />
+              </div>
+              {pickerNote && (
+                <div style={{ color: 'var(--ink2)', fontSize: 12.5, marginTop: 10 }}>{pickerNote}</div>
+              )}
               {inspectError && (
                 <div style={{ color: 'oklch(0.57 0.14 28)', fontSize: 12.5, marginTop: 10 }}>{inspectError}</div>
               )}
