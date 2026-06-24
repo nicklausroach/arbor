@@ -59,16 +59,6 @@ export interface Project {
   created_at: string;
 }
 
-export interface Task {
-  id: string;
-  project_id: string;
-  description: string;
-  status: 'draft' | 'running' | 'completed' | 'failed';
-  session_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface ChatMessage {
   id: string;
   project_id: string;
@@ -215,9 +205,6 @@ export const api = {
   getProject: (id: string) => request<ProjectState>(`/projects/${id}`),
   deleteProject: (id: string) => request<{ ok: true }>(`/projects/${id}`, { method: 'DELETE' }),
 
-  listTasks: (projectId: string) => request<Task[]>(`/projects/${projectId}/tasks`),
-  createTask: (projectId: string, description: string) =>
-    request<Task>(`/projects/${projectId}/tasks`, { method: 'POST', body: JSON.stringify({ description }) }),
   streamChat: (id: string, message: string, pinnedPaths: string[], handlers: ChatStreamHandlers) =>
     streamChat(id, message, pinnedPaths, handlers),
   editTicket: (projectId: string, ticketId: string, fields: Partial<DraftTicket>) =>
