@@ -331,6 +331,12 @@ export function updateTaskStatus(taskId: string, status: TaskRow["status"]): voi
   ).run(status, taskId);
 }
 
+export function setTaskSession(taskId: string, sessionId: string | null): void {
+  db.prepare(
+    "UPDATE tasks SET session_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?"
+  ).run(sessionId, taskId);
+}
+
 export function deleteTask(id: string): void {
   db.prepare("DELETE FROM tasks WHERE id = ?").run(id);
 }
