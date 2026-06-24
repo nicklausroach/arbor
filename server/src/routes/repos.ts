@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { Router } from "express";
 import { db } from "../db/index.js";
 import {
@@ -22,6 +23,70 @@ interface RepositoryRow {
   created_at: string;
 }
 
+type ExecFileForPicker = (
+  file: string,
+  args: string[],
+  callback: (error: Error | null, stdout: string, stderr: string) => void
+) => void;
+
+function pickerCommand(platform: NodeJS.Platform): { file: string; args: string[] } | null {
+  if (platform === "darwin") {
+    return {
+      file: "osascript",
+      args: ["-e", 'POSIX path of (choose folder with prompt "Select local repository")'],
+    };
+  }
+  if (platform === "win32") {
+    return {
+      file: "powershell",
+      args: [
+        "-NoProfile",
+        "-Sta",
+        "-Command",
+        "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = 'Select local repository'; if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $dialog.SelectedPath }",
+      ],
+    };
+  }
+  if (platform === "linux") {
+    return {
+      file: "sh",
+      args: ["-c", "command -v zenity >/dev/null 2>&1 && zenity --file-selection --directory --title='Select local repository'"],
+    };
+  }
+  return null;
+}
+
+function isPickerCancel(error: Error): boolean {
+  const message = error.message.toLowerCase();
+  return message.includes("user canceled") || message.includes("cancelled") || message.includes("canceled");
+}
+
+export async function pickRepositoryPath(
+  platform: NodeJS.Platform = process.platform,
+  execFileImpl: ExecFileForPicker = execFile
+): Promise<string | null> {
+  const command = pickerCommand(platform);
+  if (!command) {
+    throw new Error("Native directory selection is not supported on this platform.");
+  }
+
+  return new Promise((resolve, reject) => {
+    execFileImpl(command.file, command.args, (error, stdout, stderr) => {
+      if (error) {
+        if (isPickerCancel(error)) {
+          resolve(null);
+          return;
+        }
+        reject(new Error(stderr.trim() || error.message));
+        return;
+      }
+
+      const localPath = stdout.trim().replace(/[\\/]+$/, "");
+      resolve(localPath || null);
+    });
+  });
+}
+
 reposRouter.get("/", (_req, res) => {
   const rows = db.prepare("SELECT * FROM repositories ORDER BY created_at DESC").all() as RepositoryRow[];
   res.json(rows);
@@ -43,6 +108,19 @@ reposRouter.post("/inspect", (req, res) => {
   const defaultBranch = getDefaultBranch(localPath);
   const preferred = remotes.find((r) => r.remoteName === "origin") ?? remotes[0];
   res.json({ localPath, clean, defaultBranch, remotes, preferred });
+});
+
+reposRouter.post("/browse", async (_req, res) => {
+  try {
+    const localPath = await pickRepositoryPath();
+    if (!localPath) {
+      res.status(204).end();
+      return;
+    }
+    res.json({ localPath });
+  } catch (err) {
+    res.status(501).json({ error: (err as Error).message });
+  }
 });
 
 // Step 3: verify a pasted GitHub PAT against the API; on success it's stored in the keychain

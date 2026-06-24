@@ -46,6 +46,17 @@ export function ConnectView({ onConnected }: Props) {
 
   async function handleBrowse() {
     setPickerNote(null);
+    try {
+      const selected = await api.browseRepoPath();
+      if (selected?.localPath) {
+        setLocalPath(selected.localPath);
+        return;
+      }
+      return;
+    } catch {
+      // Fall back to browser-native pickers when the local server cannot open a native dialog.
+    }
+
     const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
     if (picker) {
       try {

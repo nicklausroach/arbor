@@ -180,6 +180,7 @@ export const api = {
   listRepos: () => request<Repository[]>('/repos'),
   inspectRepo: (localPath: string) =>
     request<InspectResult>('/repos/inspect', { method: 'POST', body: JSON.stringify({ localPath }) }),
+  browseRepoPath: () => request<{ localPath: string } | undefined>('/repos/browse', { method: 'POST' }),
   verifyToken: (token: string) =>
     request<{ ok: true; login: string; scopes: string[] }>('/repos/verify-token', {
       method: 'POST',
