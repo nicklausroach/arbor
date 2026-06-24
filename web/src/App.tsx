@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type Project, type Repository } from './api';
+import { api, type Project, type Repository, type Task } from './api';
 import { ConnectView } from './ConnectView';
 import { NewProjectView } from './NewProjectView';
 import { PlanView } from './PlanView';
@@ -15,6 +15,8 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentRepoId, setCurrentRepoId] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>('connect');
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -39,6 +41,40 @@ function App() {
       setLoading(false);
     })();
   }, []);
+
+  // Load the tasks belonging to the selected project so the sidebar can list them
+  // beneath their parent project.
+  useEffect(() => {
+    let cancelled = false;
+    const load = currentProjectId ? api.listTasks(currentProjectId) : Promise.resolve<Task[]>([]);
+    load
+      .then((loaded) => {
+        if (cancelled) return;
+        setTasks(loaded);
+        setCurrentTaskId(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTasks([]);
+        setCurrentTaskId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentProjectId]);
+
+  async function handleNewTask() {
+    if (!currentProjectId) return;
+    const description = prompt('Describe the new task:');
+    if (!description?.trim()) return;
+    try {
+      const task = await api.createTask(currentProjectId, description.trim());
+      setTasks((prev) => [task, ...prev]);
+      setCurrentTaskId(task.id);
+    } catch (err) {
+      alert(`Failed to create task: ${(err as Error).message}`);
+    }
+  }
 
   function selectRepo(repoId: string) {
     setCurrentRepoId(repoId);
@@ -99,6 +135,8 @@ function App() {
           currentRepoId={currentRepoId}
           projects={projectsForRepo}
           currentProjectId={screen === 'project' ? currentProjectId : null}
+          tasks={tasks}
+          currentTaskId={currentTaskId}
           onSelectRepo={selectRepo}
           onConnectAnother={() => setScreen('connect')}
           onSelectProject={(id) => {
@@ -107,6 +145,8 @@ function App() {
           }}
           onNewProject={() => setScreen('newProject')}
           onDeleteProject={handleDeleteProject}
+          onSelectTask={setCurrentTaskId}
+          onNewTask={handleNewTask}
           onOpenSettings={() => setSettingsOpen(true)}
         />
       )}

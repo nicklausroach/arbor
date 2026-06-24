@@ -1,16 +1,20 @@
-import { useState } from 'react';
-import type { Project, Repository } from './api';
+import { Fragment, useState } from 'react';
+import type { Project, Repository, Task } from './api';
 
 interface Props {
   repos: Repository[];
   currentRepoId: string | null;
   projects: Project[];
   currentProjectId: string | null;
+  tasks: Task[];
+  currentTaskId: string | null;
   onSelectRepo: (id: string) => void;
   onConnectAnother: () => void;
   onSelectProject: (id: string) => void;
   onNewProject: () => void;
   onDeleteProject: (id: string) => void;
+  onSelectTask: (id: string) => void;
+  onNewTask: () => void;
   onOpenSettings: () => void;
 }
 
@@ -34,16 +38,27 @@ const STATUS_META: Record<string, { label: string; dot: string }> = {
   done: { label: 'Done', dot: 'oklch(0.5 0.09 150)' },
 };
 
+const TASK_STATUS_META: Record<string, { label: string; dot: string }> = {
+  draft: { label: 'Draft', dot: 'var(--muted)' },
+  running: { label: 'Running', dot: 'oklch(0.55 0.1 245)' },
+  completed: { label: 'Done', dot: 'oklch(0.5 0.09 150)' },
+  failed: { label: 'Failed', dot: 'oklch(0.57 0.14 28)' },
+};
+
 export function Sidebar({
   repos,
   currentRepoId,
   projects,
   currentProjectId,
+  tasks,
+  currentTaskId,
   onSelectRepo,
   onConnectAnother,
   onSelectProject,
   onNewProject,
   onDeleteProject,
+  onSelectTask,
+  onNewTask,
   onOpenSettings,
 }: Props) {
   const [repoMenuOpen, setRepoMenuOpen] = useState(false);
@@ -233,8 +248,8 @@ export function Sidebar({
         const meta = STATUS_META[p.status] ?? STATUS_META.draft;
         const isHovered = hoveredProjectId === p.id;
         return (
+          <Fragment key={p.id}>
           <div
-            key={p.id}
             onMouseEnter={() => setHoveredProjectId(p.id)}
             onMouseLeave={() => setHoveredProjectId(null)}
             style={{
@@ -290,6 +305,56 @@ export function Sidebar({
               </button>
             )}
           </div>
+          {active && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, margin: '0 0 6px 18px' }}>
+              {tasks.map((t) => {
+                const taskMeta = TASK_STATUS_META[t.status] ?? TASK_STATUS_META.draft;
+                const taskActive = t.id === currentTaskId;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => onSelectTask(t.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '5px 9px',
+                      borderRadius: 7,
+                      fontSize: 11.5,
+                      fontWeight: taskActive ? 600 : 500,
+                      color: taskActive ? 'var(--ink)' : 'var(--ink2)',
+                      background: taskActive ? 'var(--panel2)' : 'transparent',
+                      minWidth: 0,
+                    }}
+                  >
+                    <span
+                      style={{ width: 6, height: 6, borderRadius: 99, flex: 'none', background: taskMeta.dot }}
+                      title={taskMeta.label}
+                    />
+                    <span style={{ flex: 1, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
+                      {t.description}
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                onClick={onNewTask}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '5px 9px',
+                  borderRadius: 7,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--muted)',
+                }}
+              >
+                <span style={{ width: 14, textAlign: 'center', fontSize: 13 }}>+</span>New task
+              </button>
+            </div>
+          )}
+          </Fragment>
         );
       })}
       <button
