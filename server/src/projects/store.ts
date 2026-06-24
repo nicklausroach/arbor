@@ -43,6 +43,7 @@ export function deleteProject(id: string): void {
   db.prepare("DELETE FROM dependencies WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM runs WHERE ticket_id IN (SELECT id FROM tickets WHERE project_id = ?)").run(id);
   db.prepare("DELETE FROM tickets WHERE project_id = ?").run(id);
+  db.prepare("DELETE FROM tasks WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM graph_versions WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM projects WHERE id = ?").run(id);
 }
@@ -292,4 +293,50 @@ export function listRunsForTicket(ticketId: string): RunRow[] {
 
 export function getRun(runId: string): RunRow | undefined {
   return db.prepare("SELECT * FROM runs WHERE id = ?").get(runId) as RunRow | undefined;
+}
+
+export interface TaskRow {
+  id: string;
+  project_id: string;
+  description: string;
+  status: "draft" | "running" | "completed" | "failed";
+  session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createTask(params: { projectId: string; description: string }): TaskRow {
+  const id = newId("task");
+  db.prepare("INSERT INTO tasks (id, project_id, description) VALUES (?, ?, ?)").run(
+    id,
+    params.projectId,
+    params.description
+  );
+  return getTask(id)!;
+}
+
+export function getTask(id: string): TaskRow | undefined {
+  return db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow | undefined;
+}
+
+export function listTasksForProject(projectId: string): TaskRow[] {
+  return db
+    .prepare("SELECT * FROM tasks WHERE project_id = ? ORDER BY created_at DESC")
+    .all(projectId) as TaskRow[];
+}
+
+export function updateTaskStatus(taskId: string, status: TaskRow["status"]): void {
+  db.prepare(
+    "UPDATE tasks SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?"
+  ).run(status, taskId);
+}
+
+export function setTaskSession(taskId: string, sessionId: string | null): void {
+  db.prepare(
+    "UPDATE tasks SET session_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?"
+  ).run(sessionId, taskId);
+}
+
+export function deleteTask(id: string): void {
+  db.prepare("DELETE FROM tasks WHERE id = ?").run(id);
 }
