@@ -41,8 +41,9 @@ export function previewAuthMiddleware(req: Request, res: Response, next: NextFun
   const expected = previewToken();
   if (!expected) return next();
 
-  // Health checks must stay reachable for Fly's load balancer without a token.
-  if (req.path === "/api/health") return next();
+  // Health checks and GitHub's post-install redirect must stay reachable without
+  // the preview cookie. The callback still carries an unguessable state token.
+  if (req.path === "/api/health" || req.path === "/api/repos/github-app/callback") return next();
 
   if (tokenFromCookie(req) === expected) return next();
 

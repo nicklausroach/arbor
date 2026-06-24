@@ -21,6 +21,7 @@ export interface Repository {
   name: string;
   default_branch: string;
   created_at: string;
+  github_installation_id: number | null;
 }
 
 export interface GitHubRemote {
@@ -81,6 +82,29 @@ export interface SettingsState {
   agentCommand: string;
   maxConcurrency: number;
 }
+
+export interface GitHubLoginStart {
+  sessionId: string;
+  userCode: string;
+  verificationUri: string;
+  expiresAt: number;
+  interval: number;
+}
+
+export type GitHubLoginPoll =
+  | { status: 'pending'; interval: number }
+  | { status: 'expired' }
+  | { status: 'authorized'; login: string; scopes: string[] };
+
+export interface GitHubAppStart {
+  sessionId: string;
+  installationUrl: string;
+}
+
+export type GitHubAppPoll =
+  | { status: 'pending' }
+  | { status: 'expired' }
+  | { status: 'installed'; installationId: number };
 
 export interface Ticket {
   id: string;
@@ -186,8 +210,13 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ token }),
     }),
-  connectRepo: (params: { localPath: string; owner: string; name: string; defaultBranch: string; token: string }) =>
+  connectRepo: (params: { localPath: string; owner: string; name: string; defaultBranch: string; token?: string; githubInstallationId?: number }) =>
     request<Repository>('/repos', { method: 'POST', body: JSON.stringify(params) }),
+  deleteRepo: (id: string) => request<{ ok: true }>(`/repos/${id}`, { method: 'DELETE' }),
+  startGithubAppInstall: (owner: string, name: string) =>
+    request<GitHubAppStart>('/repos/github-app/start', { method: 'POST', body: JSON.stringify({ owner, name }) }),
+  pollGithubAppInstall: (sessionId: string) =>
+    request<GitHubAppPoll>('/repos/github-app/poll', { method: 'POST', body: JSON.stringify({ sessionId }) }),
   authStatus: () => request<{ connected: boolean }>('/repos/auth-status'),
 
   listProjects: () => request<Project[]>('/projects'),

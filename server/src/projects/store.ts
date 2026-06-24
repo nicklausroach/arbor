@@ -23,6 +23,7 @@ export interface RepositoryRow {
   owner: string;
   name: string;
   default_branch: string;
+  github_installation_id: number | null;
 }
 
 export function getRepository(id: string): RepositoryRow | undefined {
@@ -40,6 +41,11 @@ export function createProject(params: { repositoryId: string; title: string; obj
   return getProject(id)!;
 }
 
+export function listProjectsForRepository(repositoryId: string): ProjectRow[] {
+  return db.prepare("SELECT * FROM projects WHERE repository_id = ? ORDER BY created_at DESC").all(repositoryId) as ProjectRow[];
+}
+
+
 export function deleteProject(id: string): void {
   db.prepare("DELETE FROM chat_messages WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM dependencies WHERE project_id = ?").run(id);
@@ -47,6 +53,17 @@ export function deleteProject(id: string): void {
   db.prepare("DELETE FROM tickets WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM graph_versions WHERE project_id = ?").run(id);
   db.prepare("DELETE FROM projects WHERE id = ?").run(id);
+}
+
+export function deleteRepository(id: string): void {
+  const tx = db.transaction((repositoryId: string) => {
+    const projects = listProjectsForRepository(repositoryId);
+    for (const project of projects) {
+      deleteProject(project.id);
+    }
+    db.prepare("DELETE FROM repositories WHERE id = ?").run(repositoryId);
+  });
+  tx(id);
 }
 
 export function getProject(id: string): ProjectRow | undefined {

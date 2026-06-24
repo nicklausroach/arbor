@@ -10,8 +10,8 @@ vi.mock("../runner/runner.js", () => ({ startTicketRun }));
 
 const getPrMergeState = vi.fn();
 const findOpenPrForBranch = vi.fn();
-const octokitFromStoredPat = vi.fn(() => ({}) as any);
-vi.mock("../github/client.js", () => ({ getPrMergeState, findOpenPrForBranch, octokitFromStoredPat }));
+const octokitForRepository = vi.fn(async () => ({}) as any);
+vi.mock("../github/client.js", () => ({ getPrMergeState, findOpenPrForBranch, octokitForRepository }));
 
 const { migrate, setSetting } = await import("../db/index.js");
 const { tick } = await import("./tick.js");

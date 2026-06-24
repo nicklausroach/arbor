@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { api, type SettingsState } from './api';
+import { api, type Repository, type SettingsState } from './api';
 
 interface Props {
+  repos: Repository[];
+  currentRepoId: string | null;
+  onDeleteRepo: (id: string) => void;
   onClose: () => void;
 }
 
-export function SettingsModal({ onClose }: Props) {
+export function SettingsModal({ repos, currentRepoId, onDeleteRepo, onClose }: Props) {
   const [settings, setSettings] = useState<SettingsState | null>(null);
   const [agentCommand, setAgentCommand] = useState('');
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -62,7 +65,33 @@ export function SettingsModal({ onClose }: Props) {
         <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 22 }}>
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', marginBottom: 7 }}>GitHub authentication</div>
-            <StatusRow ok={settings?.githubConnected} label={settings?.githubConnected ? 'Token in OS keychain' : 'Not connected — connect a repo first'} />
+            <StatusRow ok={settings?.githubConnected} label={settings?.githubConnected ? 'GitHub App installed' : 'Not connected — install the GitHub App while connecting a repo'} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', marginBottom: 7 }}>Repositories</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {repos.map((repo) => (
+                <div
+                  key={repo.id}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg)' }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {repo.owner}/{repo.name}
+                    </div>
+                    <div className="mono" style={{ fontSize: 10.5, color: repo.id === currentRepoId ? 'var(--accent)' : 'var(--muted)', marginTop: 2 }}>
+                      {repo.id === currentRepoId ? 'current' : repo.default_branch}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onDeleteRepo(repo.id)}
+                    style={{ padding: '7px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'oklch(0.57 0.14 28)' }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', marginBottom: 7 }}>Planner (Claude Code)</div>

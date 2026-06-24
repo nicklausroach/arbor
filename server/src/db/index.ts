@@ -31,6 +31,11 @@ export function migrate(): void {
   } catch {
     // column already exists
   }
+  try {
+    db.exec("ALTER TABLE repositories ADD COLUMN github_installation_id INTEGER");
+  } catch {
+    // column already exists
+  }
 }
 
 export function getSetting(key: string): string | undefined {

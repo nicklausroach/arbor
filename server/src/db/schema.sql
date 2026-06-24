@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS repositories (
   owner TEXT NOT NULL,
   name TEXT NOT NULL,
   default_branch TEXT NOT NULL,
+  github_installation_id INTEGER,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 

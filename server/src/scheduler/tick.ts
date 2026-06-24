@@ -1,5 +1,5 @@
 import { getSetting } from "../db/index.js";
-import { findOpenPrForBranch, getPrMergeState, octokitFromStoredPat } from "../github/client.js";
+import { findOpenPrForBranch, getPrMergeState, octokitForRepository } from "../github/client.js";
 import { startTicketRun } from "../runner/runner.js";
 import {
   finishRun,
@@ -16,8 +16,9 @@ export async function tick(projectId: string): Promise<void> {
   const project = getProject(projectId);
   if (!project || project.status !== "running") return;
   const repo = getRepository(project.repository_id);
-  const octokit = octokitFromStoredPat();
-  if (!repo || !octokit) return;
+  if (!repo) return;
+  const octokit = await octokitForRepository(repo);
+  if (!octokit) return;
 
   // 0. Recover tickets left "running" by a server restart mid-run, or "failed" tickets
   // that may have created a PR: the in-memory process handle is gone, but the agent may

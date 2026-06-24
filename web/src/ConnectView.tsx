@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { api, type GitHubRemote, type Repository } from './api';
+import { useEffect, useRef, useState } from 'react';
+import { api, type GitHubAppStart, type GitHubRemote, type Repository } from './api';
 
 interface Props {
   onConnected: (repo: Repository) => void;
@@ -22,12 +22,11 @@ export function ConnectView({ onConnected }: Props) {
   const [clean, setClean] = useState(true);
   const [remotes, setRemotes] = useState<GitHubRemote[]>([]);
   const [selectedRemote, setSelectedRemote] = useState<GitHubRemote | null>(null);
-  const [token, setToken] = useState('');
+  const [githubInstall, setGithubInstall] = useState<GitHubAppStart | null>(null);
+  const [githubInstallationId, setGithubInstallationId] = useState<number | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authDone, setAuthDone] = useState(false);
-  const [login, setLogin] = useState('');
-  const [scopes, setScopes] = useState<string[]>([]);
   const [connecting, setConnecting] = useState(false);
 
   async function handleInspect() {
@@ -97,14 +96,49 @@ export function ConnectView({ onConnected }: Props) {
     e.target.value = '';
   }
 
+  useEffect(() => {
+    if (!githubInstall || authDone) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      setAuthBusy(true);
+      try {
+        const result = await api.pollGithubAppInstall(githubInstall.sessionId);
+        if (cancelled) return;
+        if (result.status === 'installed') {
+          setGithubInstallationId(result.installationId);
+          setAuthDone(true);
+          return;
+        }
+        if (result.status === 'expired') {
+          setGithubInstall(null);
+          setAuthError('GitHub App installation expired. Start installation again.');
+          return;
+        }
+        timer = window.setTimeout(poll, 2000);
+      } catch (err) {
+        if (!cancelled) setAuthError((err as Error).message);
+      } finally {
+        if (!cancelled) setAuthBusy(false);
+      }
+    };
+    timer = window.setTimeout(poll, 2000);
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [githubInstall, authDone]);
+
   async function handleAuthorize() {
+    if (!selectedRemote) return;
     setAuthBusy(true);
     setAuthError(null);
+    setAuthDone(false);
+    setGithubInstallationId(null);
     try {
-      const result = await api.verifyToken(token.trim());
-      setLogin(result.login);
-      setScopes(result.scopes);
-      setAuthDone(true);
+      const result = await api.startGithubAppInstall(selectedRemote.owner, selectedRemote.name);
+      setGithubInstall(result);
+      window.open(result.installationUrl, '_blank', 'noopener,noreferrer');
     } catch (err) {
       setAuthError((err as Error).message);
     } finally {
@@ -121,7 +155,7 @@ export function ConnectView({ onConnected }: Props) {
         owner: selectedRemote.owner,
         name: selectedRemote.name,
         defaultBranch,
-        token: token.trim(),
+        githubInstallationId: githubInstallationId ?? undefined,
       });
       onConnected(repo);
     } catch (err) {
@@ -311,9 +345,8 @@ export function ConnectView({ onConnected }: Props) {
                 Authorize GitHub
               </div>
               <div style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 18, lineHeight: 1.5 }}>
-                Paste a personal access token with <code className="mono">repo</code> and{' '}
-                <code className="mono">read:org</code> scopes. Arbor verifies it, then stores it in your OS keychain
-                — never in the local database.
+                Install the Arbor GitHub App on only <code className="mono">{selectedRemote?.owner}/{selectedRemote?.name}</code>.
+                GitHub will let you choose selected repositories, so Arbor gets access only to this repo.
               </div>
               {authDone ? (
                 <div
@@ -329,33 +362,27 @@ export function ConnectView({ onConnected }: Props) {
                 >
                   <span style={{ fontSize: 18, color: 'var(--accent)' }}>✓</span>
                   <div>
-                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>API access verified — {login}</div>
-                    <div style={{ fontSize: 12, color: 'var(--ink2)' }}>scopes: {scopes.join(', ') || 'unknown'}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>GitHub App installed</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
+                      installation #{githubInstallationId} has access to this repository
+                    </div>
                   </div>
                 </div>
               ) : (
                 <>
-                  <input
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                    type="password"
-                    placeholder="ghp_…"
-                    className="mono"
-                    style={{
-                      width: '100%',
-                      fontSize: 13,
-                      padding: '12px 14px',
-                      borderRadius: 10,
-                      border: '1.5px solid var(--border2)',
-                      background: 'var(--bg)',
-                      color: 'var(--ink)',
-                      outline: 'none',
-                      marginBottom: 12,
-                    }}
-                  />
+                  {githubInstall && (
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 16, background: 'var(--bg)', marginBottom: 12 }}>
+                      <a href={githubInstall.installationUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: 'var(--accent)', fontWeight: 600 }}>
+                        Open GitHub App installation
+                      </a>
+                      <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 10 }}>
+                        Waiting for GitHub App installation…
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={handleAuthorize}
-                    disabled={!token.trim() || authBusy}
+                    disabled={authBusy}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -366,10 +393,10 @@ export function ConnectView({ onConnected }: Props) {
                       color: 'var(--bg)',
                       fontSize: 14,
                       fontWeight: 600,
-                      opacity: !token.trim() || authBusy ? 0.6 : 1,
+                      opacity: authBusy ? 0.6 : 1,
                     }}
                   >
-                    {authBusy ? 'Verifying…' : 'Verify & continue'}
+                    {githubInstall ? 'Restart GitHub App install' : authBusy ? 'Starting…' : 'Install GitHub App'}
                   </button>
                   {authError && (
                     <div style={{ color: 'oklch(0.57 0.14 28)', fontSize: 12.5, marginTop: 10 }}>{authError}</div>

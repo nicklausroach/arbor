@@ -88,6 +88,41 @@ function App() {
     }
   }
 
+  async function handleDeleteRepo(repoId: string) {
+    const repo = repos.find((r) => r.id === repoId);
+    const repoLabel = repo ? `${repo.owner}/${repo.name}` : 'this repo';
+    if (!confirm(`Delete ${repoLabel} from Arbor? All of its projects will also be deleted. This cannot be undone.`)) return;
+    try {
+      await api.deleteRepo(repoId);
+      const remainingRepos = repos.filter((r) => r.id !== repoId);
+      const remainingProjects = projects.filter((p) => p.repository_id !== repoId);
+      setRepos(remainingRepos);
+      setProjects(remainingProjects);
+
+      if (currentRepoId !== repoId) return;
+      const nextRepo = remainingRepos[0] ?? null;
+      if (!nextRepo) {
+        setCurrentRepoId(null);
+        setCurrentProjectId(null);
+        setScreen('connect');
+        return;
+      }
+
+      setCurrentRepoId(nextRepo.id);
+      const nextProject = remainingProjects.find((p) => p.repository_id === nextRepo.id) ?? null;
+      if (nextProject) {
+        setCurrentProjectId(nextProject.id);
+        setScreen('project');
+      } else {
+        setCurrentProjectId(null);
+        setScreen('newProject');
+      }
+    } catch (err) {
+      alert(`Failed to delete repo: ${(err as Error).message}`);
+    }
+  }
+
+
   const currentProject = projects.find((p) => p.id === currentProjectId) ?? null;
   const projectsForRepo = projects.filter((p) => p.repository_id === currentRepoId);
 
@@ -125,7 +160,7 @@ function App() {
           )
         ) : null}
       </div>
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsModal repos={repos} currentRepoId={currentRepoId} onDeleteRepo={handleDeleteRepo} onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

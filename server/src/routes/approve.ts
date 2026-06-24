@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { octokitFromStoredPat, createIssue, createMilestone, ensureLabel } from "../github/client.js";
+import { octokitForRepository, createIssue, createMilestone, ensureLabel } from "../github/client.js";
 import { teardownPlannerSession } from "../planner/plannerSession.js";
 import { topoOrder } from "../planner/topo.js";
 import type { DraftTicket } from "../planner/types.js";
@@ -61,9 +61,9 @@ approveRouter.post("/:id/approve", async (req, res) => {
     res.status(404).json({ error: "repository not found" });
     return;
   }
-  const octokit = octokitFromStoredPat();
+  const octokit = await octokitForRepository(repo);
   if (!octokit) {
-    res.status(400).json({ error: "No GitHub token configured. Connect a repo first." });
+    res.status(400).json({ error: "No GitHub auth configured. Install the GitHub App for this repo first." });
     return;
   }
 

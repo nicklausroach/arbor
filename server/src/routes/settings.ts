@@ -1,14 +1,21 @@
 import { Router } from "express";
-import { getSetting, setSetting } from "../db/index.js";
+import { db, getSetting, setSetting } from "../db/index.js";
 import { GITHUB_PAT_ACCOUNT } from "../github/client.js";
 import { getSecret } from "../keychain.js";
 import { isClaudeAvailable } from "../runner/claudeBin.js";
 
 export const settingsRouter = Router();
 
+function hasGitHubAuth(): boolean {
+  const appRepos = db.prepare("SELECT COUNT(*) AS count FROM repositories WHERE github_installation_id IS NOT NULL").get() as {
+    count: number;
+  };
+  return Boolean(getSecret(GITHUB_PAT_ACCOUNT)) || appRepos.count > 0;
+}
+
 settingsRouter.get("/", (_req, res) => {
   res.json({
-    githubConnected: Boolean(getSecret(GITHUB_PAT_ACCOUNT)),
+    githubConnected: hasGitHubAuth(),
     // The Planner runs on Claude Code's ambient auth; we can only confirm the binary
     // resolves. Real auth failures surface when a planning run is attempted.
     claudeAvailable: isClaudeAvailable(),
