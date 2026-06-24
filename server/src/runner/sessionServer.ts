@@ -1,13 +1,19 @@
-import type { Server } from "node:http";
+import type { IncomingMessage, Server } from "node:http";
 import { WebSocketServer } from "ws";
 import { getRun, getTicketById } from "../projects/store.js";
+import { isAuthorized } from "../previewAuth.js";
 import { worktreePath } from "./paths.js";
 import { endSession, spawnSession } from "./sessionPty.js";
 
 const RUN_SESSION_RE = /^\/ws\/runs\/([^/]+)\/session$/;
 
 export function attachSessionServer(httpServer: Server): void {
-  const wss = new WebSocketServer({ server: httpServer });
+  // `verifyClient` rejects the upgrade before a socket is established, so the preview
+  // token gate covers /ws just like the HTTP routes. No-op when no token is configured.
+  const wss = new WebSocketServer({
+    server: httpServer,
+    verifyClient: (info: { req: IncomingMessage }) => isAuthorized(info.req),
+  });
 
   wss.on("connection", (ws, req) => {
     const match = RUN_SESSION_RE.exec(req.url ?? "");

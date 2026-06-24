@@ -1,0 +1,18 @@
+# Keep host artifacts out of the build context. Notably node_modules: the builder runs
+# its own `npm ci` for Linux, and copying the host's macOS-native node_modules over it
+# would break better-sqlite3 / node-pty at runtime.
+node_modules
+**/node_modules
+dist
+**/dist
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.git
+.github
+.DS_Store
+*.log
+.claude
+.agents
+design-assets
+docs

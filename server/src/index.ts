@@ -1,7 +1,10 @@
 import cors from "cors";
 import express from "express";
+import { existsSync } from "node:fs";
 import { createServer } from "node:http";
+import { join } from "node:path";
 import { migrate } from "./db/index.js";
+import { previewAuthMiddleware } from "./previewAuth.js";
 import { approveRouter } from "./routes/approve.js";
 import { projectsRouter } from "./routes/projects.js";
 import { reposRouter } from "./routes/repos.js";
@@ -24,6 +27,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Private preview gate (no-op unless ARBOR_PREVIEW_TOKEN is set). Runs before any
+// route so both the API and the static SPA below are protected.
+app.use(previewAuthMiddleware);
+
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
@@ -34,6 +41,19 @@ app.use("/api/projects", approveRouter);
 app.use("/api/projects", runRouter);
 app.use("/api/runs", runLogRouter);
 app.use("/api/settings", settingsRouter);
+
+// In a packaged deployment (Fly preview app) the server also serves the built web SPA
+// so it's a single app on one port. ARBOR_WEB_DIR points at web/dist; unset in local
+// dev, where Vite serves the SPA and proxies /api + /ws here.
+const webDir = process.env.ARBOR_WEB_DIR;
+if (webDir && existsSync(webDir)) {
+  app.use(express.static(webDir));
+  // SPA fallback: anything that isn't an /api route returns index.html so client-side
+  // routing works on deep links / refreshes.
+  app.get(/^(?!\/api\/).*/, (_req, res) => {
+    res.sendFile(join(webDir, "index.html"));
+  });
+}
 
 setInterval(() => {
   for (const project of listRunningProjects()) {
