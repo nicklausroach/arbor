@@ -59,7 +59,7 @@ setInterval(() => {
   for (const project of listRunningProjects()) {
     tick(project.id).catch((err) => console.error(`scheduler tick failed for ${project.id}:`, err));
   }
-}, 60_000);
+}, 10_000);
 
 const httpServer = createServer(app);
 attachSessionServer(httpServer);

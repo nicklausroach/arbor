@@ -206,16 +206,19 @@ export function Sidebar({
                   width: '100%',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 9,
+                  justifyContent: 'center',
+                  gap: 6,
                   padding: '9px 8px',
                   marginTop: 4,
                   borderTop: '1px solid var(--border)',
                   fontSize: 12.5,
                   fontWeight: 600,
                   color: 'var(--accent)',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <span style={{ width: 25, textAlign: 'center', fontSize: 15 }}>+</span>Connect another repo
+                <span style={{ fontSize: 15, lineHeight: 1, display: 'flex', alignItems: 'center', transform: 'translateY(-1px)' }}>+</span>
+                <span style={{ lineHeight: 1 }}>Connect another repo</span>
               </button>
             </div>
           </>
