@@ -6,12 +6,9 @@ import { findOpenPrForBranch } from "../github/client.js";
 import {
   finishRun,
   insertRun,
-  setTaskSession,
   setTicketStatus,
-  updateTaskStatus,
   type ProjectRow,
   type RepositoryRow,
-  type TaskRow,
   type TicketWithDeps,
 } from "../projects/store.js";
 import { buildAgentPrompt, type DependencyRef } from "./prompt.js";
@@ -95,56 +92,5 @@ export function startTicketRun(params: {
     }
     finishRun(run.id, "succeeded", pr.number, pr.url);
     setTicketStatus(ticket.id, "review");
-  });
-}
-
-/**
- * Spawn the coding harness for a standalone task. Unlike {@link startTicketRun},
- * this runs the agent directly in the repository's main directory — there is no
- * worktree, branch, or GitHub PR tracking. The task description is passed
- * verbatim as the agent's prompt.
- */
-export function startTaskRun(params: {
-  project: ProjectRow;
-  repo: RepositoryRow;
-  task: TaskRow;
-  agentCommand: string;
-}): void {
-  const { repo, task, agentCommand } = params;
-  const runLogPath = logPath(task.id + "-" + Date.now());
-  // Session resume ("Connect to session") is Claude Code-specific; only attach a
-  // --session-id when the configured agent command actually invokes claude.
-  const isClaudeAgent = /^\s*claude\b/.test(agentCommand);
-  const sessionId = isClaudeAgent ? randomUUID() : undefined;
-  const spawnCommand = sessionId ? `${agentCommand} --session-id ${sessionId}` : agentCommand;
-
-  setTaskSession(task.id, sessionId ?? null);
-  updateTaskStatus(task.id, "running");
-
-  const prompt = task.description;
-
-  writeFileSync(runLogPath, `$ ${spawnCommand}\n(cwd: ${repo.local_path})\n\n`);
-
-  const child = spawn(spawnCommand, {
-    cwd: repo.local_path,
-    shell: true,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  child.stdin.write(prompt);
-  child.stdin.end();
-  child.stdout.on("data", (chunk: Buffer) => {
-    appendFileSync(runLogPath, chunk);
-  });
-  child.stderr.on("data", (chunk: Buffer) => {
-    appendFileSync(runLogPath, chunk);
-  });
-
-  child.on("error", (err) => {
-    appendFileSync(runLogPath, `\nProcess error: ${err.message}\n`);
-    updateTaskStatus(task.id, "failed");
-  });
-
-  child.on("close", (code) => {
-    updateTaskStatus(task.id, code === 0 ? "completed" : "failed");
   });
 }
