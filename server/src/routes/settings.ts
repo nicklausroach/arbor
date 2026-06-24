@@ -47,10 +47,15 @@ settingsRouter.put("/agent-command", (req, res) => {
 
 settingsRouter.put("/max-concurrency", (req, res) => {
   const { maxConcurrency } = req.body as { maxConcurrency?: number };
-  if (!maxConcurrency || maxConcurrency < 1) {
-    res.status(400).json({ error: "maxConcurrency must be >= 1" });
+  if (typeof maxConcurrency !== "number" || !Number.isFinite(maxConcurrency)) {
+    res.status(400).json({ error: "maxConcurrency must be an integer between 1 and 999" });
     return;
   }
-  setSetting("max_concurrency", String(Math.floor(maxConcurrency)));
+  const value = Math.floor(maxConcurrency);
+  if (value < 1 || value > 999) {
+    res.status(400).json({ error: "maxConcurrency must be an integer between 1 and 999" });
+    return;
+  }
+  setSetting("max_concurrency", String(value));
   res.json({ ok: true });
 });
