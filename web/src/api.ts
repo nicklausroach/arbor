@@ -99,6 +99,16 @@ export interface Ticket {
   updated_at: string;
 }
 
+export interface Task {
+  id: string;
+  project_id: string;
+  description: string;
+  status: 'draft' | 'running' | 'completed' | 'failed';
+  session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ApproveResult {
   project: Project;
   tickets: Ticket[];
@@ -248,6 +258,14 @@ export const api = {
     }
     return outcome ?? { ok: false, error: 'Approval stream ended unexpectedly' };
   },
+
+  listTasks: (projectId: string) => request<Task[]>(`/projects/${projectId}/tasks`),
+  createTask: (projectId: string, description: string) =>
+    request<Task>(`/projects/${projectId}/tasks`, { method: 'POST', body: JSON.stringify({ description }) }),
+  deleteTask: (projectId: string, taskId: string) =>
+    request<{ ok: true }>(`/projects/${projectId}/tasks/${taskId}`, { method: 'DELETE' }),
+  startTask: (projectId: string, taskId: string) =>
+    request<Task>(`/projects/${projectId}/tasks/${taskId}/start`, { method: 'POST' }),
 
   getRunState: (projectId: string) => request<RunState>(`/projects/${projectId}/run-state`),
   refresh: (projectId: string) => request<RunState>(`/projects/${projectId}/refresh`, { method: 'POST' }),

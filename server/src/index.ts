@@ -11,6 +11,7 @@ import { reposRouter } from "./routes/repos.js";
 import { runRouter } from "./routes/run.js";
 import { runLogRouter } from "./routes/runLog.js";
 import { settingsRouter } from "./routes/settings.js";
+import { tasksRouter } from "./routes/tasks.js";
 import { listRunningProjects } from "./projects/store.js";
 import { attachSessionServer } from "./runner/sessionServer.js";
 import { tick } from "./scheduler/tick.js";
@@ -39,6 +40,7 @@ app.use("/api/repos", reposRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api/projects", approveRouter);
 app.use("/api/projects", runRouter);
+app.use("/api/projects", tasksRouter);
 app.use("/api/runs", runLogRouter);
 app.use("/api/settings", settingsRouter);
 
