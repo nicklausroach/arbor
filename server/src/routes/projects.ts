@@ -1,9 +1,16 @@
 import { Router } from "express";
-import { AnthropicPlannerProvider, MalformedPlannerOutputError } from "../planner/anthropicProvider.js";
+import { ClaudeCodePlannerProvider } from "../planner/claudeCode.js";
+import { MalformedPlannerOutputError } from "../planner/planParse.js";
 import type { PlannerEvent } from "../planner/llm.js";
 import type { DraftTicket } from "../planner/types.js";
 import { validateGraph } from "../planner/validate.js";
-import { getAnthropicKey } from "./settings.js";
+import {
+  releasePlannerLock,
+  teardownPlannerSession,
+  tryAcquirePlannerLock,
+} from "../planner/plannerSession.js";
+import { isClaudeAvailable } from "../runner/claudeBin.js";
+import { plannerWorktreePath } from "../runner/paths.js";
 import {
   addChatMessage,
   createProject,
@@ -15,6 +22,7 @@ import {
   listChatMessages,
   listGraphVersions,
   listProjects,
+  setPlannerSession,
 } from "../projects/store.js";
 
 export const projectsRouter = Router();
@@ -72,6 +80,7 @@ projectsRouter.delete("/:id", (req, res) => {
     res.status(404).json({ error: "project not found" });
     return;
   }
+  teardownPlannerSession(req.params.id);
   deleteProject(req.params.id);
   res.json({ ok: true });
 });
@@ -87,14 +96,17 @@ projectsRouter.post("/:id/chat", async (req, res) => {
     res.status(404).json({ error: "repository not found" });
     return;
   }
-  const apiKey = getAnthropicKey();
-  if (!apiKey) {
-    res.status(400).json({ error: "No Anthropic API key configured. Add one in Settings." });
+  if (!isClaudeAvailable()) {
+    res.status(400).json({ error: "Claude Code (claude) is not installed or not on PATH. Install it to plan." });
     return;
   }
   const { message, pinnedPaths } = req.body as { message?: string; pinnedPaths?: string[] };
   if (!message) {
     res.status(400).json({ error: "message is required" });
+    return;
+  }
+  if (!tryAcquirePlannerLock(project.id)) {
+    res.status(409).json({ error: "Planning is already in progress for this project." });
     return;
   }
 
@@ -112,8 +124,6 @@ projectsRouter.post("/:id/chat", async (req, res) => {
   });
   const send = (event: Record<string, unknown>) => res.write(`data: ${JSON.stringify(event)}\n\n`);
 
-  send({ type: "message", message: addChatMessage(project.id, "user", message) });
-
   const onEvent = (event: PlannerEvent) => {
     if (event.type === "text_delta") {
       send({ type: "text_delta", text: event.text });
@@ -124,20 +134,34 @@ projectsRouter.post("/:id/chat", async (req, res) => {
     }
   };
 
-  const provider = new AnthropicPlannerProvider(apiKey);
+  const provider = new ClaudeCodePlannerProvider();
+  const nextVersion = (previous?.versionNumber ?? 0) + 1;
+  let sessionId = project.planner_session_id ?? undefined;
 
   try {
-    const draftGraph = (repairErrors: string[] | undefined) =>
-      provider.draftGraph({
+    send({ type: "message", message: addChatMessage(project.id, "user", message) });
+
+    const draftGraph = async (repairErrors: string[] | undefined) => {
+      const r = await provider.draftGraph({
+        projectId: project.id,
         repoPath: repo.local_path,
+        baseBranch: repo.default_branch,
         objective: project.objective,
         pinnedPaths: pinnedPaths ?? [],
         history,
         userMessage: message,
         previousTickets: previous?.tickets,
         repairErrors,
+        versionNumber: nextVersion,
+        sessionId,
         onEvent,
       });
+      // Persist the session as soon as a run completes, so the repair call below and the
+      // next planning turn resume it instead of starting cold.
+      sessionId = r.sessionId;
+      setPlannerSession(project.id, r.sessionId, plannerWorktreePath(project.id));
+      return r;
+    };
 
     let result: Awaited<ReturnType<typeof draftGraph>> | undefined;
     let repairErrors: string[] | undefined;
@@ -189,6 +213,8 @@ projectsRouter.post("/:id/chat", async (req, res) => {
     send({ type: "message", message: addChatMessage(project.id, "system", `Planner error: ${(err as Error).message}`) });
     send({ type: "error", error: (err as Error).message });
     res.end();
+  } finally {
+    releasePlannerLock(project.id);
   }
 });
 

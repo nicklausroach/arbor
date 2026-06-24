@@ -77,7 +77,7 @@ export interface ProjectState {
 
 export interface SettingsState {
   githubConnected: boolean;
-  anthropicConnected: boolean;
+  claudeAvailable: boolean;
   agentCommand: string;
   maxConcurrency: number;
 }
@@ -253,8 +253,6 @@ export const api = {
   refresh: (projectId: string) => request<RunState>(`/projects/${projectId}/refresh`, { method: 'POST' }),
 
   getSettings: () => request<SettingsState>('/settings'),
-  setAnthropicKey: (apiKey: string) =>
-    request<{ ok: true }>('/settings/anthropic-key', { method: 'PUT', body: JSON.stringify({ apiKey }) }),
   setAgentCommand: (agentCommand: string) =>
     request<{ ok: true }>('/settings/agent-command', { method: 'PUT', body: JSON.stringify({ agentCommand }) }),
   setMaxConcurrency: (maxConcurrency: number) =>

@@ -17,4 +17,6 @@ export interface PlannerResult {
   tickets: DraftTicket[];
   assistantMessage: string;
   toolCalls: { tag: string; text: string }[];
+  /** The session id the planning run used (new or resumed) — persisted for the next turn. */
+  sessionId: string;
 }
