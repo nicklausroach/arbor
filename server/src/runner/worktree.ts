@@ -6,6 +6,8 @@ import { dirname } from "node:path";
 // reuse it rather than failing — `git worktree add` would error on a duplicate branch.
 export function ensureWorktree(repoPath: string, worktreeDir: string, branch: string, baseBranch: string): void {
   if (existsSync(worktreeDir)) return;
+  const remoteBase = `refs/remotes/origin/${baseBranch}`;
+  execFileSync("git", ["fetch", "origin", `+refs/heads/${baseBranch}:${remoteBase}`], { cwd: repoPath });
   mkdirSync(dirname(worktreeDir), { recursive: true });
-  execFileSync("git", ["worktree", "add", worktreeDir, "-b", branch, baseBranch], { cwd: repoPath });
+  execFileSync("git", ["worktree", "add", worktreeDir, "-b", branch, remoteBase], { cwd: repoPath });
 }
