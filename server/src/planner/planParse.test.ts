@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseProposeGraphInput } from "./anthropicProvider.js";
+import { parsePlanInput } from "./planParse.js";
 
-describe("parseProposeGraphInput", () => {
+describe("parsePlanInput", () => {
   it("rejects a non-array tickets payload without throwing", () => {
-    const result = parseProposeGraphInput({
+    const result = parsePlanInput({
       summary: { title: "Plan", objective: "Do the work" },
       tickets: { id: "T1" },
     });
@@ -12,7 +12,7 @@ describe("parseProposeGraphInput", () => {
   });
 
   it("normalizes optional ticket arrays", () => {
-    const result = parseProposeGraphInput({
+    const result = parsePlanInput({
       summary: { title: "Plan", objective: "Do the work" },
       tickets: [{ id: "T1", title: "First", problem: "Problem" }],
     });
@@ -22,5 +22,9 @@ describe("parseProposeGraphInput", () => {
       summary: { title: "Plan", objective: "Do the work" },
       tickets: [{ id: "T1", title: "First", problem: "Problem", acceptanceCriteria: [], dependsOn: [] }],
     });
+  });
+
+  it("rejects a non-object plan", () => {
+    expect(parsePlanInput("nope")).toEqual({ ok: false, errors: ["plan must be an object"] });
   });
 });

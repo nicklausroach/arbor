@@ -16,7 +16,7 @@ The coding-assistant process that implements a ticket — reads the prompt, edit
 _Avoid_: Bot, worker.
 
 **Planner**:
-Arbor's own Claude call that turns an objective into a validated DAG of tickets. Uses the Anthropic API key from Settings. Distinct from the Agent/Harness, which does the coding — the Planner's Anthropic key is *not* the harness's credential.
+The Claude Code-driven step that turns a repo-scoped objective into a validated DAG of tickets. Runs as its own Claude Code session against the repository, distinct from the Agent that implements tickets — the Planner produces the plan, not production code. Authenticates via Claude Code's own session, not a credential Arbor manages. Unlike the Agent, the Planner is fixed to Claude Code rather than the configurable Harness.
 _Avoid_: Generator.
 
 **Harness**:

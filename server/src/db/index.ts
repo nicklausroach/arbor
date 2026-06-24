@@ -19,6 +19,18 @@ export function migrate(): void {
   } catch {
     // column already exists
   }
+  // The Planner now runs as a persistent Claude Code session in a per-project worktree;
+  // these track the resumable session and where its worktree lives.
+  try {
+    db.exec("ALTER TABLE projects ADD COLUMN planner_session_id TEXT");
+  } catch {
+    // column already exists
+  }
+  try {
+    db.exec("ALTER TABLE projects ADD COLUMN planner_worktree_path TEXT");
+  } catch {
+    // column already exists
+  }
 }
 
 export function getSetting(key: string): string | undefined {

@@ -12,6 +12,8 @@ export interface ProjectRow {
   milestone_url: string | null;
   label_name: string;
   base_branch: string | null;
+  planner_session_id: string | null;
+  planner_worktree_path: string | null;
   created_at: string;
 }
 
@@ -69,6 +71,18 @@ export function setProjectMilestone(id: string, milestoneNumber: number, milesto
 
 export function setProjectBaseBranch(id: string, baseBranch: string): void {
   db.prepare("UPDATE projects SET base_branch = ? WHERE id = ?").run(baseBranch, id);
+}
+
+export function setPlannerSession(id: string, sessionId: string, worktreePath: string): void {
+  db.prepare("UPDATE projects SET planner_session_id = ?, planner_worktree_path = ? WHERE id = ?").run(
+    sessionId,
+    worktreePath,
+    id
+  );
+}
+
+export function clearPlannerSession(id: string): void {
+  db.prepare("UPDATE projects SET planner_session_id = NULL, planner_worktree_path = NULL WHERE id = ?").run(id);
 }
 
 interface GraphVersionRow {

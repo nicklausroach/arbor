@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { octokitFromStoredPat, createIssue, createMilestone, ensureLabel } from "../github/client.js";
+import { teardownPlannerSession } from "../planner/plannerSession.js";
 import { topoOrder } from "../planner/topo.js";
 import type { DraftTicket } from "../planner/types.js";
 import { validateGraph } from "../planner/validate.js";
@@ -140,6 +141,8 @@ approveRouter.post("/:id/approve", async (req, res) => {
     send({ type: "step", step: "issues", status: "done" });
 
     setProjectStatus(project.id, startNow ? "running" : "approved");
+    // Planning is done for this project — reclaim its Claude Code worktree and session.
+    teardownPlannerSession(project.id);
     send({ type: "done", result: { project: getProject(project.id), tickets: listTickets(project.id) } });
   } catch (err) {
     setProjectStatus(project.id, "approval_failed");

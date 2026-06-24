@@ -1,22 +1,9 @@
-import { execFileSync } from "node:child_process";
 import * as pty from "node-pty";
+import { resolveClaudeBin } from "./claudeBin.js";
 
 const sessions = new Map<string, pty.IPty>();
 
-let cachedClaudeBin: string | undefined;
-function resolveClaudeBin(): string {
-  if (cachedClaudeBin) return cachedClaudeBin;
-  try {
-    cachedClaudeBin = execFileSync("which", ["claude"], { encoding: "utf8" }).trim();
-  } catch {
-    cachedClaudeBin = "claude"; // fall back to PATH lookup at spawn time
-  }
-  return cachedClaudeBin;
-}
-
-// node-pty's posix_spawnp can fail to resolve a bare command name depending on the
-// parent process's PATH at spawn time, so resolve an absolute path up front. Spawn
-// errors must never escape this function uncaught — node-pty throws synchronously
+// Spawn errors must never escape this function uncaught — node-pty throws synchronously
 // on spawn failure, and an uncaught throw here would crash the whole server process.
 export function spawnSession(runId: string, cwd: string, sessionId: string): pty.IPty {
   const existing = sessions.get(runId);

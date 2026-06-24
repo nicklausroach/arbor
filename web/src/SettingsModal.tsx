@@ -7,7 +7,6 @@ interface Props {
 
 export function SettingsModal({ onClose }: Props) {
   const [settings, setSettings] = useState<SettingsState | null>(null);
-  const [anthropicKey, setAnthropicKey] = useState('');
   const [agentCommand, setAgentCommand] = useState('');
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
@@ -17,14 +16,6 @@ export function SettingsModal({ onClose }: Props) {
       setAgentCommand(s.agentCommand);
     });
   }, []);
-
-  async function saveAnthropicKey() {
-    if (!anthropicKey.trim()) return;
-    await api.setAnthropicKey(anthropicKey.trim());
-    setAnthropicKey('');
-    setSettings(await api.getSettings());
-    setSavedMsg('Anthropic key saved to keychain.');
-  }
 
   async function saveAgentCommand() {
     await api.setAgentCommand(agentCommand.trim());
@@ -74,24 +65,10 @@ export function SettingsModal({ onClose }: Props) {
             <StatusRow ok={settings?.githubConnected} label={settings?.githubConnected ? 'Token in OS keychain' : 'Not connected — connect a repo first'} />
           </div>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', marginBottom: 7 }}>Anthropic API key</div>
-            <StatusRow ok={settings?.anthropicConnected} label={settings?.anthropicConnected ? 'Key in OS keychain' : 'Not set — planner chat will fail'} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <input
-                value={anthropicKey}
-                onChange={(e) => setAnthropicKey(e.target.value)}
-                type="password"
-                placeholder="sk-ant-…"
-                className="mono"
-                style={{ flex: 1, fontSize: 12.5, padding: '10px 12px', borderRadius: 9, border: '1px solid var(--border2)', background: 'var(--bg)', color: 'var(--ink)', outline: 'none' }}
-              />
-              <button
-                onClick={saveAnthropicKey}
-                disabled={!anthropicKey.trim()}
-                style={{ fontSize: 12.5, fontWeight: 600, color: '#fff', background: 'var(--accent)', borderRadius: 8, padding: '0 14px', opacity: !anthropicKey.trim() ? 0.5 : 1 }}
-              >
-                Save
-              </button>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', marginBottom: 7 }}>Planner (Claude Code)</div>
+            <StatusRow ok={settings?.claudeAvailable} label={settings?.claudeAvailable ? 'claude found on PATH' : 'claude not found — install Claude Code to plan'} />
+            <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 6 }}>
+              Planning runs through Claude Code using its own session auth. No API key needed.
             </div>
           </div>
           <div>
