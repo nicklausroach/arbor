@@ -40,6 +40,22 @@ function App() {
     })();
   }, []);
 
+  // The projects list backs the sidebar's status dots. Project statuses advance
+  // server-side (e.g. running -> done once the last ticket merges), so without polling
+  // the sidebar stays stuck on whatever status was loaded at mount while the detail view
+  // — which polls run-state — already shows the true status. Re-fetch to keep them in
+  // sync. (#61)
+  useEffect(() => {
+    const poll = window.setInterval(async () => {
+      try {
+        setProjects(await api.listProjects());
+      } catch {
+        // transient fetch error — the next tick retries
+      }
+    }, 5_000);
+    return () => window.clearInterval(poll);
+  }, []);
+
   function selectRepo(repoId: string) {
     setCurrentRepoId(repoId);
     const project = projects.find((p) => p.repository_id === repoId) ?? null;

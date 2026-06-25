@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, type RunState, type TicketWithRuns } from './api';
 import { layoutGraph, NODE_HEIGHT, NODE_WIDTH } from './dagLayout';
 import { GraphViewport } from './GraphViewport';
@@ -26,17 +26,20 @@ export function RunView({ projectId }: Props) {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [session, setSession] = useState<{ runId: string; ticketNumber: number; branch: string } | null>(null);
-  const pollRef = useRef<number | null>(null);
-
-  async function load() {
-    setState(await api.getRunState(projectId));
-  }
 
   useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const next = await api.getRunState(projectId);
+      if (!cancelled) setState(next);
+    }
     load();
-    pollRef.current = window.setInterval(load, 60_000);
+    // Ticket statuses advance server-side every scheduler tick (~10s), so poll on a
+    // comparable cadence — at 60s the graph sat visibly stale right after kickoff. (#62)
+    const pollId = window.setInterval(load, 5_000);
     return () => {
-      if (pollRef.current) window.clearInterval(pollRef.current);
+      cancelled = true;
+      window.clearInterval(pollId);
     };
   }, [projectId]);
 
