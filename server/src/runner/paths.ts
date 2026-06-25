@@ -5,7 +5,12 @@ import { join } from "node:path";
 const ARBOR_HOME = process.env.ARBOR_HOME ?? join(homedir(), ".arbor");
 
 export function worktreePath(projectId: string, ticketId: string): string {
-  return join(ARBOR_HOME, "worktrees", projectId, ticketId);
+  return join(projectWorktreesPath(projectId), ticketId);
+}
+
+// The per-project base dir holding all of a project's per-ticket execution worktrees.
+export function projectWorktreesPath(projectId: string): string {
+  return join(ARBOR_HOME, "worktrees", projectId);
 }
 
 // The Planner's per-project worktree, kept separate from per-ticket execution
