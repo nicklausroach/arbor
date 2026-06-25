@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { projectWorktreesPath } from "./paths.js";
-import { getProject, getRepository } from "../projects/store.js";
+import { getProject, getRepository, listProjects } from "../projects/store.js";
 
 // Idempotent: if the worktree directory already exists (e.g. a prior partial run),
 // reuse it rather than failing — `git worktree add` would error on a duplicate branch.
@@ -57,5 +57,20 @@ export function teardownProjectWorktrees(projectId: string): void {
     rmSync(base, { recursive: true, force: true });
   } catch {
     // nothing to remove
+  }
+}
+
+// On startup, reclaim execution worktrees orphaned by a crash, an interrupted deletion,
+// or pre-existing data from before per-project teardown existed. Any per-project directory
+// whose project no longer exists in the database is torn down; existing projects are left
+// untouched. For true orphans the project row is already gone, so teardownProjectWorktrees
+// falls back to a raw directory delete.
+export function reapStaleExecutionWorktrees(): void {
+  const base = dirname(projectWorktreesPath("_"));
+  if (!existsSync(base)) return;
+  const liveProjectIds = new Set(listProjects().map((p) => p.id));
+  for (const projectId of readdirSync(base)) {
+    if (liveProjectIds.has(projectId)) continue;
+    teardownProjectWorktrees(projectId);
   }
 }
