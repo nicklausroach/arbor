@@ -11,6 +11,7 @@ import {
 } from "../planner/plannerSession.js";
 import { isClaudeAvailable } from "../runner/claudeBin.js";
 import { plannerWorktreePath } from "../runner/paths.js";
+import { teardownProjectWorktrees } from "../runner/worktree.js";
 import {
   addChatMessage,
   createProject,
@@ -81,6 +82,9 @@ projectsRouter.delete("/:id", (req, res) => {
     return;
   }
   teardownPlannerSession(req.params.id);
+  // Remove execution worktrees while the project/repo rows are still resolvable, so the
+  // helper can run `git worktree remove` against the repo's local_path. Best-effort.
+  teardownProjectWorktrees(req.params.id);
   deleteProject(req.params.id);
   res.json({ ok: true });
 });

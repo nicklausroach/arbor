@@ -18,6 +18,7 @@ import { newId } from "../id.js";
 import { getSecret, setSecret } from "../keychain.js";
 import { deleteRepository, listProjectsForRepository } from "../projects/store.js";
 import { teardownPlannerSession } from "../planner/plannerSession.js";
+import { teardownProjectWorktrees } from "../runner/worktree.js";
 
 export const reposRouter = Router();
 
@@ -351,6 +352,9 @@ reposRouter.delete("/:id", (req, res) => {
   const projects = listProjectsForRepository(req.params.id);
   for (const project of projects) {
     teardownPlannerSession(project.id);
+    // Remove execution worktrees while the repo row is still resolvable, so the helper
+    // can run `git worktree remove` against the repo's local_path. Best-effort.
+    teardownProjectWorktrees(project.id);
   }
   deleteRepository(req.params.id);
   res.json({ ok: true });
