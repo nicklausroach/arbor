@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { projectWorktreesPath } from "./paths.js";
+import { getProject, getRepository } from "../projects/store.js";
 
 // Idempotent: if the worktree directory already exists (e.g. a prior partial run),
 // reuse it rather than failing — `git worktree add` would error on a duplicate branch.
@@ -10,4 +12,50 @@ export function ensureWorktree(repoPath: string, worktreeDir: string, branch: st
   execFileSync("git", ["fetch", "origin", `+refs/heads/${baseBranch}:${remoteBase}`], { cwd: repoPath });
   mkdirSync(dirname(worktreeDir), { recursive: true });
   execFileSync("git", ["worktree", "add", worktreeDir, "-b", branch, remoteBase], { cwd: repoPath });
+}
+
+// Removes every execution worktree for a project: git bookkeeping (when the repo is
+// resolvable) plus the on-disk directories, then the now-empty per-project dir.
+// Best-effort: a missing directory, an unregistered worktree, or an unknown repo are all
+// swallowed, so callers can invoke it unconditionally (e.g. on project deletion).
+export function teardownProjectWorktrees(projectId: string): void {
+  const base = projectWorktreesPath(projectId);
+  let repoPath: string | undefined;
+  try {
+    const project = getProject(projectId);
+    const repo = project ? getRepository(project.repository_id) : undefined;
+    repoPath = repo?.local_path;
+  } catch {
+    // project row already gone or store unavailable — fall back to a raw delete
+  }
+
+  let children: string[] = [];
+  try {
+    children = readdirSync(base);
+  } catch {
+    // base dir doesn't exist — nothing registered or on disk
+  }
+
+  for (const child of children) {
+    const dir = join(base, child);
+    if (repoPath) {
+      try {
+        execFileSync("git", ["worktree", "remove", "--force", dir], { cwd: repoPath });
+      } catch {
+        // worktree already gone or never registered — fall through to a raw delete
+      }
+    }
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // nothing to remove
+    }
+  }
+
+  // Remove the now-empty per-project dir so no stale folder is left behind.
+  try {
+    rmSync(base, { recursive: true, force: true });
+  } catch {
+    // nothing to remove
+  }
 }
