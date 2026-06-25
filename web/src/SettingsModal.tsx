@@ -11,12 +11,15 @@ interface Props {
 export function SettingsModal({ repos, currentRepoId, onDeleteRepo, onClose }: Props) {
   const [settings, setSettings] = useState<SettingsState | null>(null);
   const [agentCommand, setAgentCommand] = useState('');
+  const [concurrency, setConcurrencyInput] = useState('');
+  const [concurrencyError, setConcurrencyError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   useEffect(() => {
     api.getSettings().then((s) => {
       setSettings(s);
       setAgentCommand(s.agentCommand);
+      setConcurrencyInput(String(s.maxConcurrency));
     });
   }, []);
 
@@ -26,7 +29,13 @@ export function SettingsModal({ repos, currentRepoId, onDeleteRepo, onClose }: P
     setSavedMsg('Agent command saved.');
   }
 
-  async function setConcurrency(n: number) {
+  async function saveConcurrency() {
+    const n = Number(concurrency);
+    if (!Number.isInteger(n) || n < 1 || n > 999) {
+      setConcurrencyError('Enter a whole number from 1 to 999.');
+      return;
+    }
+    setConcurrencyError(null);
     await api.setMaxConcurrency(n);
     setSettings(await api.getSettings());
   }
@@ -118,27 +127,23 @@ export function SettingsModal({ repos, currentRepoId, onDeleteRepo, onClose }: P
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', marginBottom: 7 }}>Max concurrency</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {[1, 2, 3, 4].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setConcurrency(n)}
-                  style={{
-                    width: 40,
-                    height: 36,
-                    borderRadius: 9,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    border: `1.5px solid ${settings?.maxConcurrency === n ? 'var(--accent)' : 'var(--border)'}`,
-                    background: settings?.maxConcurrency === n ? 'var(--accent-soft)' : 'var(--bg)',
-                    color: 'var(--ink)',
-                  }}
-                >
-                  {n}
-                </button>
-              ))}
+              <input
+                type="number"
+                min={1}
+                max={999}
+                step={1}
+                value={concurrency}
+                onChange={(e) => setConcurrencyInput(e.target.value)}
+                onBlur={saveConcurrency}
+                className="mono"
+                style={{ width: 90, fontSize: 12.5, color: 'var(--ink)', background: 'var(--bg)', border: `1px solid ${concurrencyError ? 'oklch(0.57 0.14 28)' : 'var(--border2)'}`, borderRadius: 10, padding: '11px 13px', outline: 'none' }}
+              />
             </div>
+            {concurrencyError && (
+              <div style={{ fontSize: 11.5, color: 'oklch(0.57 0.14 28)', marginTop: 6 }}>{concurrencyError}</div>
+            )}
             <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 6 }}>
-              Global limit on simultaneously running agents. Default 1 is safest.
+              Global limit on simultaneously running agents. Accepts a whole number from 1 to 999. Default 1 is safest.
             </div>
           </div>
           {savedMsg && <div style={{ fontSize: 12, color: 'var(--accent)' }}>{savedMsg}</div>}
