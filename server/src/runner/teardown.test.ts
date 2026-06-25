@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 function git(cwd: string, args: string[]) {
@@ -69,5 +69,60 @@ describe("teardownProjectWorktrees", () => {
 
     expect(existsSync(projectWorktreesPath("proj_missing"))).toBe(false);
     expect(() => teardownProjectWorktrees("proj_missing")).not.toThrow();
+  });
+});
+
+// Loads the modules under test against a fresh, migrated database so listProjects()
+// reflects rows we insert here.
+async function loadWithDb(arborHome: string) {
+  process.env.ARBOR_HOME = arborHome;
+  process.env.ARBOR_DB_PATH = join(mkdtempSync(join(tmpdir(), "arbor-reap-db-")), "arbor.sqlite");
+  vi.resetModules();
+  const dbModule = await import("../db/index.js");
+  dbModule.migrate();
+  const paths = await import("./paths.js");
+  const worktree = await import("./worktree.js");
+  const store = await import("../projects/store.js");
+  return { ...dbModule, ...paths, ...worktree, ...store };
+}
+
+describe("reapStaleExecutionWorktrees", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("reaps a deleted project's worktrees while preserving an existing project's", async () => {
+    const root = mkdtempSync(join(tmpdir(), "arbor-reap-"));
+    const arborHome = join(root, "home");
+
+    const { db, worktreePath, reapStaleExecutionWorktrees, createProject } = await loadWithDb(arborHome);
+
+    db.prepare(
+      "INSERT INTO repositories (id, local_path, owner, name, default_branch) VALUES (?, ?, ?, ?, ?)"
+    ).run("repo_reap", "/tmp/repo", "acme", "widgets", "main");
+    const live = createProject({ repositoryId: "repo_reap", title: "live", objective: "stay" });
+
+    // A worktree dir for the existing project, plus one for a project that no longer exists.
+    const liveDir = worktreePath(live.id, "tkt_live");
+    const staleDir = worktreePath("proj_deleted", "tkt_stale");
+    mkdirSync(liveDir, { recursive: true });
+    mkdirSync(staleDir, { recursive: true });
+    writeFileSync(join(liveDir, "keep.txt"), "keep\n");
+    writeFileSync(join(staleDir, "drop.txt"), "drop\n");
+
+    reapStaleExecutionWorktrees();
+
+    expect(existsSync(liveDir)).toBe(true);
+    expect(existsSync(staleDir)).toBe(false);
+  });
+
+  it("is a no-op (does not throw) when the worktrees base dir does not exist", async () => {
+    const root = mkdtempSync(join(tmpdir(), "arbor-reap-noop-"));
+    const arborHome = join(root, "home");
+
+    const { reapStaleExecutionWorktrees, projectWorktreesPath } = await loadWithDb(arborHome);
+
+    expect(existsSync(dirname(projectWorktreesPath("_")))).toBe(false);
+    expect(() => reapStaleExecutionWorktrees()).not.toThrow();
   });
 });

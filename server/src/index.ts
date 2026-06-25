@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { migrate } from "./db/index.js";
 import { seedPreviewRepo } from "./db/seed.js";
 import { reapStalePlannerWorktrees } from "./planner/plannerSession.js";
+import { reapStaleExecutionWorktrees } from "./runner/worktree.js";
 import { previewAuthMiddleware } from "./previewAuth.js";
 import { approveRouter } from "./routes/approve.js";
 import { projectsRouter } from "./routes/projects.js";
@@ -22,6 +23,8 @@ migrate();
 seedPreviewRepo();
 // Reclaim planning worktrees left behind by projects that are gone or past the draft phase.
 reapStalePlannerWorktrees();
+// Reclaim execution worktrees orphaned by crashes or interrupted project deletions.
+reapStaleExecutionWorktrees();
 
 // This process supervises real long-running agent subprocesses and worktrees — an
 // uncaught error in one request/connection handler must never take the whole
